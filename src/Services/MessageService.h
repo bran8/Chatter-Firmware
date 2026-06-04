@@ -47,18 +47,20 @@ public:
 	bool deleteFriend(UID_t uid);
 
 private:
-	Message sendMessage(UID_t convo, Message& message);
+    Message sendMessage(UID_t convo, Message message);
 	bool sendPacket(UID_t receiver, const Message& message);
 
-	void receiveMessage(ReceivedPacket<MessagePacket>& packet);
-	void receiveAck(ReceivedPacket<MessagePacket>& packet);
+    void receiveMessage(ReceivedPacket<MessagePacket>& packet);
+    void receiveAck(ReceivedPacket<MessagePacket>& packet);
 
-	void notifyUnread();
+    void notifyUnread();
+	void retryPendingMessages();
 
-	std::unordered_map<UID_t, Message> lastMessages;
+    std::unordered_map<UID_t, Message> lastMessages;
 
-	bool unread = false;
-
+    bool unread = false;
+    uint32_t retryTimer = 0;
+    static constexpr uint32_t RetryIntervalMicros = 10000000;
 };
 
 class MsgReceivedListener {

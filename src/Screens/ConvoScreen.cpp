@@ -140,8 +140,11 @@ void ConvoScreen::buttonPressed(uint i){
 }
 
 void ConvoScreen::buttonHeld(uint i){
-	if(i != BTN_R) return;
+	printf("BTN %d held\n", i);
 	if(picMenu->isActive() || menuMessage->isActive()) return;
+
+
+	if(i != BTN_R) return;
 
 	convoBox->deselect();
 	textEntry->stop();

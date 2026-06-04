@@ -280,6 +280,24 @@ void TextEntry::buttonHeld(uint i){
 		return;
 	}
 
+	if(i == BTN_1){
+        std::string text = getText();
+
+        if(!text.empty()){
+            lv_textarea_del_char(entry);
+            text = getText();
+            if(!text.empty()) text += " ";
+        }
+
+        text += "Lets stop for a bathroom break!";
+        setText(text);
+
+        keyTime = 0;
+        currentKey = -1;
+        LoopManager::removeListener(this);
+        return;
+    }
+
 	if(!keyMap.count(i)) return;
 	uint8_t key = keyMap.at(i);
 

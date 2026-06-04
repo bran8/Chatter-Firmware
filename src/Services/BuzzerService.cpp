@@ -37,23 +37,29 @@ const std::unordered_map<uint8_t, uint16_t> BuzzerService::noteMap = {
 const std::vector<BuzzerService::Note> BuzzerService::Notes = {
 		{ NOTE_B5, 100000 },
 		{ 0, 50000 },
-		{ NOTE_B4, 100000 }
+		{ NOTE_B4, 100000 },
+		{ NOTE_C5, 100000 },
+		{ 0, 50000 },
+		{ NOTE_G4, 100000 },
+		{ 0, 100000 },
+		{ NOTE_C5, 500000 }
 };
 
 
 void BuzzerService::msgReceived(const Message &message){
-	if(!Settings.get().sound) return;
-	if(message.convo == noBuzzUID && noBuzzUID != ESP.getEfuseMac()) return;
+    if(!Settings.get().sound) return;
+    //if(message.convo == noBuzzUID && noBuzzUID != ESP.getEfuseMac()) return;
 
-	LoopManager::defer([this](uint32_t){
-		LoopManager::defer([this](uint32_t){
-			LoopManager::addListener(this);
+    alertActive = true;
 
-			noteIndex = 0;
-			noteTime = 0;
-			Piezo.tone(Notes[noteIndex].freq);
-		});
-	});
+    LoopManager::defer([this](uint32_t){
+        LoopManager::defer([this](uint32_t){
+            noteIndex = 0;
+            noteTime = 0;
+            LoopManager::addListener(this);
+            Piezo.tone(Notes[noteIndex].freq);
+        });
+    });
 }
 
 void BuzzerService::setNoBuzzUID(UID_t noBuzzUid){
@@ -61,39 +67,49 @@ void BuzzerService::setNoBuzzUID(UID_t noBuzzUid){
 }
 
 void BuzzerService::buttonPressed(uint i){
-	extern bool gameStarted;
-	if(gameStarted) return;
-	if(i == BTN_ENTER && muteEnter) return;
-	if(!Settings.get().sound) return;
+    extern bool gameStarted;
+    if(gameStarted) return;
+    if(!Settings.get().sound) return;
+
 	Piezo.tone(noteMap.at(i), 25);
+    alertActive = false;
+    noteIndex = 0;
+    noteTime = 0;
+    //Piezo.noTone();
+    LoopManager::removeListener(this);
+	//printf("Alert canceled, %d pressed\n", i);
 }
 
 void BuzzerService::loop(uint micros){
-	if(!Settings.get().sound){
-		Piezo.noTone();
-		LoopManager::removeListener(this);
-		return;
-	}
+    if(!Settings.get().sound){
+        alertActive = false;
+        Piezo.noTone();
+        LoopManager::removeListener(this);
+        return;
+    }
 
-	noteTime += micros;
-	if(noteTime < Notes[noteIndex].duration) return;
+    noteTime += micros;
+    if(noteTime < Notes[noteIndex].duration) return;
 
-	noteIndex++;
-	noteTime = 0;
+    noteIndex++;
+    noteTime = 0;
 
-	if(noteIndex >= Notes.size()){
-		LoopManager::removeListener(this);
-		Piezo.noTone();
-		return;
-	}
+    if(noteIndex >= Notes.size()){
+        if(alertActive){
+            noteIndex = 0;
+        }else{
+            LoopManager::removeListener(this);
+            Piezo.noTone();
+            return;
+        }
+    }
 
-	if(Notes[noteIndex].freq == 0){
-		Piezo.noTone();
-		return;
-	}
+    if(Notes[noteIndex].freq == 0){
+        Piezo.noTone();
+        return;
+    }
 
-
-	Piezo.tone(Notes[noteIndex].freq);
+    Piezo.tone(Notes[noteIndex].freq);
 }
 
 void BuzzerService::setMuteEnter(bool muteEnter){

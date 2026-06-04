@@ -142,7 +142,7 @@ void MainMenu::loadGIFs(){
 		lv_obj_swap(big, bigLabels[i]);
 
 		lv_gif_set_src(bigs[i], (String("S:/Menu/Big/") + Items[i].icon + ".gif").c_str());
-		lv_gif_set_loop(big, LV_GIF_LOOP_ON);
+		//lv_gif_set_loop(big, LV_GIF_LOOP_ON);
 		lv_gif_stop(big);
 		lv_gif_restart(big);
 
@@ -351,24 +351,24 @@ void MainMenu::launch(){
 }
 
 void MainMenu::selectNext(){
-	if(selected + 1 >= ItemCount) return;
+    if(selected + 1 >= ItemCount) return;
 
-	startAnim(selected, true);
-	selected++;
-	startAnim(selected);
-	lv_obj_scroll_to(mid, 0, selected * lv_obj_get_height(mid), LV_ANIM_ON);
+    startAnim(selected, true);
+    selected++;
+    startAnim(selected);
+    lv_obj_scroll_to(mid, 0, selected * lv_obj_get_height(mid), LV_ANIM_ON);
 
-	if(selected + 1 == ItemCount){
-		lv_anim_set_var(&arrowHideAnim1, arrowDown);
-		lv_anim_set_values(&arrowHideAnim1, 0, lv_obj_get_height(arrowDown) + 2);
-		lv_anim_start(&arrowHideAnim1);
-	}
+    if(selected + 1 == ItemCount){
+        lv_anim_set_var(&arrowHideAnim1, arrowDown);
+        lv_anim_set_values(&arrowHideAnim1, 0, lv_obj_get_height(arrowDown) + 2);
+        lv_anim_start(&arrowHideAnim1);
+    }
 
-	if(selected == 1){
-		lv_anim_set_var(&arrowHideAnim2, arrowUp);
-		lv_anim_set_values(&arrowHideAnim2, -(lv_obj_get_height(arrowDown) + 2), 0);
-		lv_anim_start(&arrowHideAnim2);
-	}
+    if(selected == 1){
+        lv_anim_set_var(&arrowHideAnim2, arrowUp);
+        lv_anim_set_values(&arrowHideAnim2, -(lv_obj_get_height(arrowDown) + 2), 0);
+        lv_anim_start(&arrowHideAnim2);
+    }
 }
 
 void MainMenu::selectPrev(){

@@ -42,7 +42,7 @@ Message MessageService::sendPic(UID_t convo, uint16_t index){
 	return sendMessage(convo, message);
 }
 
-Message MessageService::sendMessage(UID_t uid, Message& message){
+Message MessageService::sendMessage(UID_t uid, Message message){
 	if(!Storage.Friends.exists(uid)) return { };
 
 	Convo convo = Storage.Convos.get(uid);
@@ -146,15 +146,17 @@ bool MessageService::deleteFriend(UID_t uid){
 }
 
 void MessageService::loop(uint micros){
-	ReceivedPacket<MessagePacket> packet = LoRa.getMessage();
+    retryTimer += micros;
+    if(retryTimer >= RetryIntervalMicros){
+        retryTimer = 0;
+        retryPendingMessages();
+    }
 
-	if(!packet.content || !Storage.Friends.exists(packet.sender)) return;
+    ReceivedPacket<MessagePacket> packet = LoRa.getMessage();
+    if(!packet.content || !Storage.Friends.exists(packet.sender)) return;
 
-	if(packet.content->type == MessagePacket::ACK){
-		receiveAck(packet);
-	}else{
-		receiveMessage(packet);
-	}
+    if(packet.content->type == MessagePacket::ACK) receiveAck(packet);
+    else receiveMessage(packet);
 }
 
 void MessageService::receiveMessage(ReceivedPacket<MessagePacket>& packet){
@@ -308,22 +310,35 @@ bool MessageService::markUnread(UID_t convoUID){
 }
 
 void MessageService::notifyUnread(){
-	bool hasUnread = false;
+    bool hasUnread = false;
+    for(UID_t uid : Storage.Convos.all()){
+        Convo convo = Storage.Convos.get(uid);
+        if(convo.uid == 0) continue;
+        if(convo.unread){
+            hasUnread = true;
+            break;
+        }
+    }
 
-	for(UID_t uid : Storage.Convos.all()){
-		Convo convo = Storage.Convos.get(uid);
-		if(convo.uid == 0) continue;
+    if(hasUnread == unread) return;
+    unread = hasUnread;
+    WithListeners<UnreadListener>::iterateListeners([hasUnread](UnreadListener* listener){
+        listener->onUnread(hasUnread);
+    });
+}
 
-		if(convo.unread){
-			hasUnread = true;
-			break;
-		}
-	}
+void MessageService::retryPendingMessages(){
+    for(UID_t convoUID : Storage.Convos.all()){
+        Convo convo = Storage.Convos.get(convoUID);
+        if(convo.uid == 0) continue;
 
-	if(hasUnread == unread) return;
-	unread = hasUnread;
+        for(UID_t msgUID : convo.messages){
+            Message msg = Storage.Messages.get(msgUID);
+            if(msg.uid == 0) continue;
+            if(!msg.outgoing) continue;
+            if(msg.received) continue;
 
-	WithListeners<UnreadListener>::iterateListeners([hasUnread](UnreadListener* listener){
-		listener->onUnread(hasUnread);
-	});
+            sendPacket(convo.uid, msg);
+        }
+    }
 }

@@ -24,6 +24,7 @@ private:
 	uint32_t noteTime = 0;
 	uint8_t noteIndex = 0;
 	bool muteEnter = false;
+	bool alertActive = false;
 };
 
 extern BuzzerService Buzz;

@@ -200,7 +200,7 @@ void setup(){
 		test->start();
 		for(;;);
 	}else{
-		printf("Hello\n");
+		printf("\n");
 	}
 
 	if(Battery.getPercentage() == 0){
