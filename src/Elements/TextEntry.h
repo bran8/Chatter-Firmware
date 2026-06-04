@@ -23,10 +23,13 @@ public:
 	std::string getText() const;
 	void showCaps(bool show);
 
-	void keyPress(uint8_t i);
-	void clear();
+    void keyPress(uint8_t i);
+    void clear();
 
-	void start();
+    void setCannedMessage(uint8_t button, const std::string& text);
+    void clearCannedMessage(uint8_t button);
+
+    void start();
 	void stop();
 	void focus();
 	void defocus();
@@ -44,9 +47,11 @@ private:
 
 	static const char* characters[];
 	static char* charMap;
-	static const std::map<uint8_t, uint8_t> keyMap;
+    static const std::map<uint8_t, uint8_t> keyMap;
 
-	lv_obj_t* entry;
+    std::map<uint8_t, std::string> cannedMessages;
+
+    lv_obj_t* entry;
 	lv_obj_t* capsText;
 	bool active = false;
 

@@ -123,7 +123,27 @@ std::string TextEntry::getText() const{
 }
 
 void TextEntry::clear(){
-	setText("");
+    setText("");
+}
+
+void TextEntry::setCannedMessage(uint8_t button, const std::string& text){
+
+    if(!keyMap.count(button)){
+        printf("setCannedMessage rejected button=%u\n", (unsigned) button);
+        return;
+    }
+
+    if(text.empty()){
+        cannedMessages.erase(button);
+        printf("setCannedMessage erased button=%u\n", (unsigned) button);
+        return;
+    }
+
+    cannedMessages[button] = text;
+}
+
+void TextEntry::clearCannedMessage(uint8_t button){
+    cannedMessages.erase(button);
 }
 
 void TextEntry::start(){
@@ -275,21 +295,26 @@ void TextEntry::buttonHeldRepeat(uint i, uint repeatCount){
 }
 
 void TextEntry::buttonHeld(uint i){
-	if(i == BTN_R){
-		btnRHeld = true;
-		return;
-	}
+    if(i == BTN_R){
+        btnRHeld = true;
+        return;
+    }
 
-	if(i == BTN_1){
+	auto canned = cannedMessages.find(i);
+    if(canned != cannedMessages.end()){
         std::string text = getText();
 
-        if(!text.empty()){
+		printf(text.c_str());
+        if(currentKey != -1){
             lv_textarea_del_char(entry);
             text = getText();
-            if(!text.empty()) text += " ";
         }
 
-        text += "Lets stop for a bathroom break!";
+        if(!text.empty() && text.back() != ' '){
+            text += " ";
+        }
+		
+        text += canned->second;
         setText(text);
 
         keyTime = 0;
@@ -298,20 +323,24 @@ void TextEntry::buttonHeld(uint i){
         return;
     }
 
-	if(!keyMap.count(i)) return;
-	uint8_t key = keyMap.at(i);
+    if(!keyMap.count(i)){
+        return;
+    }
 
-	if(key != currentKey) return;
+    uint8_t key = keyMap.at(i);
+    if(key != currentKey){
+        return;
+    }
 
-	const char* chars = characters[key];
-	char last = chars[strnlen(chars, 16) - 1];
+    const char* chars = characters[key];
+    char last = chars[strnlen(chars, 16) - 1];
 
-	lv_textarea_del_char(entry);
-	lv_textarea_add_char(entry, last);
+    lv_textarea_del_char(entry);
+    lv_textarea_add_char(entry, last);
 
-	keyTime = 0;
-	currentKey = -1;
-	LoopManager::removeListener(this);
+    keyTime = 0;
+    currentKey = -1;
+    LoopManager::removeListener(this);
 }
 
 void TextEntry::buttonReleased(uint i){
