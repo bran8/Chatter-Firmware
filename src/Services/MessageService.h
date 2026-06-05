@@ -22,6 +22,9 @@ public:
 	Message sendText(UID_t convo, const std::string& text);
 	Message sendPic(UID_t convo, uint16_t index);
 
+	int broadcastText(const std::string& text);
+	int broadcastPic(uint16_t index);
+
 	Message resend(UID_t convo, UID_t message);
 
 	bool deleteMessage(UID_t convo, UID_t msg);

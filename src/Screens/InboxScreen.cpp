@@ -5,6 +5,7 @@
 #include "ConvoScreen.h"
 #include "../Elements/ListItem.h"
 #include "PairScreen.h"
+#include "BroadcastScreen.h"
 
 InboxScreen::InboxScreen() : LVScreen(), apop(this){
 	lv_obj_set_height(obj, LV_SIZE_CONTENT);
@@ -32,6 +33,13 @@ InboxScreen::InboxScreen() : LVScreen(), apop(this){
 		lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
 		return;
 	}
+
+	auto broadcastItem = new ListItem(obj, ">> Broadcast All", 0);
+	lv_group_add_obj(inputGroup, broadcastItem->getLvObj());
+	lv_obj_add_event_cb(broadcastItem->getLvObj(), [](lv_event_t* event){
+		auto* screen = static_cast<LVScreen*>(lv_event_get_user_data(event));
+		screen->push(new BroadcastScreen());
+	}, LV_EVENT_PRESSED, this);
 
 	std::vector<UID_t> frens = Storage.Friends.all();
 	params.reserve(frens.size());

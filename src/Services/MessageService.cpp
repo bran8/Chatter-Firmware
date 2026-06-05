@@ -73,6 +73,28 @@ Message MessageService::sendMessage(UID_t uid, Message message){
 	return message;
 }
 
+int MessageService::broadcastText(const std::string& text){
+	int sent = 0;
+	UID_t self = ESP.getEfuseMac();
+	for(UID_t uid : Storage.Friends.all()){
+		if(uid == self) continue;
+		Message msg = sendText(uid, text);
+		if(msg.uid != 0) sent++;
+	}
+	return sent;
+}
+
+int MessageService::broadcastPic(uint16_t index){
+	int sent = 0;
+	UID_t self = ESP.getEfuseMac();
+	for(UID_t uid : Storage.Friends.all()){
+		if(uid == self) continue;
+		Message msg = sendPic(uid, index);
+		if(msg.uid != 0) sent++;
+	}
+	return sent;
+}
+
 Message MessageService::resend(UID_t convo, UID_t message){
 	if(!Storage.Convos.exists(convo)) return { };
 
@@ -153,7 +175,35 @@ void MessageService::loop(uint micros){
     }
 
     ReceivedPacket<MessagePacket> packet = LoRa.getMessage();
-    if(!packet.content || !Storage.Friends.exists(packet.sender)) return;
+    if(!packet.content) return;
+
+    // Debug: log incoming packets (throttled, non-blocking) - every 5 seconds
+    static uint32_t lastDebugTime = 0;
+    static const uint32_t DEBUG_INTERVAL_MS = 5000;
+    if (millis() - lastDebugTime > DEBUG_INTERVAL_MS) {
+        lastDebugTime = millis();
+        Serial.printf("LoRa Debug: type=%d sender=0x%016llX ", (int)packet.content->type, (long long)packet.sender);
+        switch (packet.content->type) {
+            case MessagePacket::TEXT: {
+                TextMessage* text = reinterpret_cast<TextMessage*>(packet.content);
+                Serial.printf("TEXT len=%zu\n", text->text.length());
+                break;
+            }
+            case MessagePacket::PIC: {
+                PicMessage* pic = reinterpret_cast<PicMessage*>(packet.content);
+                Serial.printf("PIC idx=%u\n", (unsigned int)pic->index);
+                break;
+            }
+            case MessagePacket::ACK:
+                Serial.printf("ACK uid=0x%016llX\n", (long long)packet.content->uid);
+                break;
+            default:
+                Serial.printf("OTHER\n");
+                break;
+        }
+    }
+
+    if(!Storage.Friends.exists(packet.sender)) return;
 
     if(packet.content->type == MessagePacket::ACK) receiveAck(packet);
     else receiveMessage(packet);
