@@ -11,20 +11,25 @@ This fork adds my custom tweaks for Chatter 2.0.  Agentic Engineering assisted, 
 - **Canned responses** – Long Press to type a pre-canned message
 
 
-Setup that worked for me:
-I deploy firmware from a Windows 11 PC running Arduino IDE version 2.3.4   (https://www.arduino.cc/en/software/)
-On first use, I opened Preferences and added this URL to the Boards Manager:
+Setup that worked for me:  
+
+I deploy firmware from a Windows 11 PC running Arduino IDE version 2.3.4   (https://www.arduino.cc/en/software/)  
+
+On first use, I opened Preferences and added this URL to the Boards Manager:  
+
 https://raw.githubusercontent.com/CircuitMess/Arduino-Packages/master/package_circuitmess.com_esp32_index.json
 
 Click Tools -> Board -> Boards Manager...    (or CTRL+Shift+B)
+
 Search for "circuitmess"
-Install 1.8.3 of ESP32 Boards
+
+Install 1.8.3 for ESP32 Boards by CircuitMess
 
 Then on the Select Board pull-down selector, you can find the "Boards" called: Chatter 2.0 by CircuitMess
 
 On my system, it connected to COM4 Serial Port (USB)
 
-Click File->Open-> Chatter-Firmware.ino
+Click File->Open-> **Chatter-Firmware.ino**
 
 Click the "Checkmark" to verify.  It will "Compiling sketch..." for a few minutes.
 

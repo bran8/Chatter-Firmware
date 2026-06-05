@@ -96,7 +96,7 @@ MainMenu::MainMenu() : LVScreen(){
 	}
 	loadGIFs();
 
-	lv_group_set_wrap(inputGroup, false);
+	lv_group_set_wrap(inputGroup, true);
 	lv_group_focus_obj(bigContainers.front());
 
 	inputGroup->user_data = this;
@@ -251,15 +251,9 @@ void MainMenu::onStarting(){
 			lv_obj_set_style_translate_x(smalls[i], selected == i ? lv_pct(110) : 0, LV_STATE_DEFAULT | LV_PART_MAIN);
 		}
 
+		// Wrap mode: both arrows stay visible at all times to indicate the loopable menu.
 		lv_obj_set_y(arrowUp, 0);
 		lv_obj_set_y(arrowDown, 0);
-		if(selected == 0){
-			lv_obj_set_y(arrowUp, -(13 + 2));
-		}
-
-		if(selected == ItemCount - 1){
-			lv_obj_set_y(arrowDown, 13 + 2);
-		}
 
 		lv_group_focus_obj(bigs[selected]);
 		lv_obj_scroll_to_y(mid, selected * 128, LV_ANIM_OFF);
@@ -278,9 +272,15 @@ void MainMenu::onStart(){
 		}
 
 		if(ItemCount > 1){
+			// Reveal arrowDown (slides up from below).
 			lv_anim_set_var(&arrowHideAnim2, arrowDown);
 			lv_anim_set_values(&arrowHideAnim2, 13 + 2, 0);
 			lv_anim_start(&arrowHideAnim2);
+
+			// Reveal arrowUp too — wrap mode means there's always something "above" to scroll to.
+			lv_anim_set_var(&arrowHideAnim1, arrowUp);
+			lv_anim_set_values(&arrowHideAnim1, -(13 + 2), 0);
+			lv_anim_start(&arrowHideAnim1);
 		}
 
 		lv_obj_add_event_cb(mid, [](lv_event_t* e){
@@ -317,9 +317,18 @@ void MainMenu::onStop(){
 }
 
 void MainMenu::scrollTo(uint8_t index){
-	if(index > selected){
+	if(index == selected) return;
+
+	// Detect LVGL wrap: focus jumped between the two ends.
+	// First-to-last  -> user moved backward across the wrap boundary.
+	// Last-to-first  -> user moved forward across the wrap boundary.
+	if(selected == 0 && index == ItemCount - 1){
+		selectPrev();
+	}else if(selected == ItemCount - 1 && index == 0){
 		selectNext();
-	}else if(index < selected){
+	}else if(index > selected){
+		selectNext();
+	}else{
 		selectPrev();
 	}
 }
@@ -351,45 +360,38 @@ void MainMenu::launch(){
 }
 
 void MainMenu::selectNext(){
-    if(selected + 1 >= ItemCount) return;
+    if(ItemCount == 0) return;
 
-    startAnim(selected, true);
-    selected++;
-    startAnim(selected);
-    lv_obj_scroll_to(mid, 0, selected * lv_obj_get_height(mid), LV_ANIM_ON);
+    // Compute next index in a local first so `selected` is never out of [0, ItemCount-1]
+    // even momentarily — guards against re-entrancy from animation/input callbacks.
+    const uint8_t prev = selected;
+    const uint8_t next = (prev + 1) % ItemCount;
+    const bool wrapped = (next == 0 && prev == ItemCount - 1);
 
-    if(selected + 1 == ItemCount){
-        lv_anim_set_var(&arrowHideAnim1, arrowDown);
-        lv_anim_set_values(&arrowHideAnim1, 0, lv_obj_get_height(arrowDown) + 2);
-        lv_anim_start(&arrowHideAnim1);
-    }
+    startAnim(prev, true);
+    selected = next;
+    startAnim(next);
 
-    if(selected == 1){
-        lv_anim_set_var(&arrowHideAnim2, arrowUp);
-        lv_anim_set_values(&arrowHideAnim2, -(lv_obj_get_height(arrowDown) + 2), 0);
-        lv_anim_start(&arrowHideAnim2);
-    }
+    // Wrap = instantaneous jump (no long reverse-scroll animation); otherwise smooth scroll.
+    lv_obj_scroll_to(mid, 0, next * lv_obj_get_height(mid), wrapped ? LV_ANIM_OFF : LV_ANIM_ON);
+
+    // Arrows stay visible in wrap mode to advertise the continuous loop.
 }
 
 void MainMenu::selectPrev(){
-	if(selected == 0) return;
+	if(ItemCount == 0) return;
 
-	startAnim(selected, true);
-	selected--;
-	startAnim(selected);
-	lv_obj_scroll_to(mid, 0, selected * lv_obj_get_height(mid), LV_ANIM_ON);
+	const uint8_t prev = selected;
+	const uint8_t next = (prev == 0) ? (ItemCount - 1) : (prev - 1);
+	const bool wrapped = (prev == 0 && next == ItemCount - 1);
 
-	if(selected == 0){
-		lv_anim_set_var(&arrowHideAnim1, arrowUp);
-		lv_anim_set_values(&arrowHideAnim1, 0, -(lv_obj_get_height(arrowDown) + 2));
-		lv_anim_start(&arrowHideAnim1);
-	}
+	startAnim(prev, true);
+	selected = next;
+	startAnim(next);
 
-	if(selected + 2 == ItemCount){
-		lv_anim_set_var(&arrowHideAnim2, arrowDown);
-		lv_anim_set_values(&arrowHideAnim2, lv_obj_get_height(arrowDown) + 2, 0);
-		lv_anim_start(&arrowHideAnim2);
-	}
+	lv_obj_scroll_to(mid, 0, next * lv_obj_get_height(mid), wrapped ? LV_ANIM_OFF : LV_ANIM_ON);
+
+	// Arrows stay visible in wrap mode.
 }
 
 void MainMenu::buttonPressed(uint i){
