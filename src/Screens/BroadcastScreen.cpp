@@ -4,6 +4,27 @@
 #include <Input/Input.h>
 #include <Pins.hpp>
 
+/**
+ * @file BroadcastScreen.cpp
+ * @brief Specialized screen for one-to-many rapid communication.
+ * 
+ * OVERVIEW:
+ * This screen is optimized for sending quick status updates to all connected peers.
+ * Unlike the standard messenger (which is 1-on-1/group conversation-centric), 
+ * this is an action-oriented interface designed for speed.
+ * 
+ * KEY FEATURES:
+ * - One-to-Many: Uses Messages.broadcastText() to reach all peers at once.
+ * - Canned Messages: Predefined phrases mapped to physical buttons for instant broadcasting.
+ * - Rapid Input: Integration with TextEntry for custom messages.
+ * 
+ * WORKFLOW:
+ * 1. User enters screen via "[>> Broadcast All]" menu.
+ * 2. User either types a custom message OR presses a physical button (BTN_0-9) for a canned message.
+ * 3. Pressing BTN_ENTER (or EV_ENTRY_DONE) sends the message and automatically pops the screen.
+ * 4. BTN_BACK pops the screen if not currently typing.
+ */
+
 BroadcastScreen::BroadcastScreen() : LVScreen(), apop(this){
 	lv_obj_set_style_pad_all(obj, 3, LV_PART_MAIN);
 	lv_obj_set_scrollbar_mode(obj, LV_SCROLLBAR_MODE_OFF);
