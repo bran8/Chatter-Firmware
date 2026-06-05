@@ -9,9 +9,7 @@
  * @brief Specialized screen for one-to-many rapid communication.
  * 
  * OVERVIEW:
- * This screen is optimized for sending quick status updates to all connected peers.
- * Unlike the standard messenger (which is 1-on-1/group conversation-centric), 
- * this is an action-oriented interface designed for speed.
+ * This screen is optimized for sending quick status updates to all friends list.  Canned messaged will be moved and centralized soon.
  * 
  * KEY FEATURES:
  * - One-to-Many: Uses Messages.broadcastText() to reach all peers at once.

@@ -63,7 +63,8 @@ private:
 
     bool unread = false;
     uint32_t retryTimer = 0;
-    static constexpr uint32_t RetryIntervalMicros = 10000000;
+    static constexpr uint32_t RetryIntervalMicros = 10000000; 
+	// TODO: This needs to be moved to Settings and be user configurable.  
 };
 
 class MsgReceivedListener {

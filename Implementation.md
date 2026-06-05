@@ -1,59 +1,50 @@
-# Plan: Add "[>> Broadcast All]" menu option to InboxScreen & Debugging LoRa Packets
+# Plan: MainMenu Wrap-around & Settings Retry Time Update
 
 ## Implementation Status
-**COMPLETED - Throttled LoRa Packet Debugging**
+- **COMPLETED**: Throttled LoRa Packet Debugging, [>> Broadcast All] feature.
+- **IN PROGRESS**: MainMenu cursor wrap-around, Settings menu retry time options.
 
-### What Was Implemented
+## What Was Implemented
 
-### 1. Throttled Serial Debugging in `MessageService`
+### 1. [>> Broadcast All]
+- Implemented in `src/UI/InboxScreen.cpp`.
+- Broadcasts messages to all connected nodes.
+
+### 2. Throttled LoRa Packet Debugging
 - **File**: `src/Services/MessageService.cpp`
-- **Action**: Added debug logging in `loop()` function
-- **Details**:
-  - Debug prints once every 5 seconds (non-blocking, throttled)
-  - Logs packet type, sender UID, and basic content info:
-    - `TEXT` packets: prints message length
-    - `PIC` packets: prints picture index
-    - `ACK` packets: prints message UID
-    - Other/unknown types: printed as "OTHER"
-  - Minimal overhead: only 1 check + printf every 5 seconds, no string building for every packet
-  - Non-blocking: uses `millis()` for timing, no delays
+- Added non-blocking debug logging in `loop()` every 5 seconds.
+- Logs packet type (`TEXT`, `PIC`, `ACK`, `OTHER`), sender UID, and content info.
 
-### 2. `PacketMonitorScreen` (DELETED - Not Needed)
-- Files created temporarily but removed since the simpler serial logging approach was preferred
-- Would have been a full UI screen in the Games menu to view raw packet data
+### 3. Cleanup
+- Deleted temporary `PacketMonitorScreen` files.
 
-## Original Goals (Updated)
+## Current Implementation Tasks (In Progress)
 
-### 1. [>> Broadcast All] Feature
-- **Status**: Not implemented in current change
-- **Notes**: User requested this later, but implementation focused on Packet Monitor debugging first
+### 1. MainMenu Cursor Wrap-around
+- **Goal**: Safe menu looping in `src/Screens/MainMenu.cpp`.
+- **Changes**:
+  - Update `selectNext()` and `selectPrev()` to wrap `selected` index around `ItemCount`.
+  - Repurpose/remove `arrowHideAnim` logic at boundaries so arrows do not disappear (top/bottom are connected).
+  - Manage `lv_obj_scroll_to` during wrap jumps using `LV_ANIM_OFF` to prevent jarring full-list scroll animations.
 
-### 2. Debugging LoRa Packets
-- **Status**: IMPLEMENTED
-- **Approach**: Throttled serial logging for non-intrusive debugging
-- **Location**: `MessageService::loop()` function
-- **Benefits**:
-  - No impact on normal operation when not checking serial monitor
-  - Debug interval is long (5s) so radio packet processing isn't affected
-  - Simple printf to Serial, minimal overhead
-  - Can be extended to show more packet details as needed
+### 2. Settings Menu Retry Time
+- **Goal**: Modify retry time capability in the Settings menu.
+- **New Options**: 15 seconds, 1 minute, 2 minutes, 5 minutes.
+- **Files**: Target Settings menu implementation files.
 
-## Implementation Steps (Original Plan - Updated)
+## Next Steps
+1. Finalize boundary checks and LVGL animation handling in `MainMenu`.
+2. Implement and test retry time cycling in Settings menu.
+3. Validate UI stability after menu wrapping.
 
-### 1. Update `MessageService`
-- **COMPLETED**: Added throttled debug logging in `MessageService::loop`
-  - Uses `millis()` for non-blocking timing
-  - Only prints debug info once every 5 seconds
-  - Logs packet type, sender, and basic content info
+## Key Decisions
+- Wrap-around uses index modulo logic for continuity.
+- Wrap jumps disable LVGL scroll animations to prevent visual glitches.
+- Debug interval fixed at 5 seconds to minimize radio interference.
 
-### 2. Packet Monitor Screen (DELETED)
-- Not implemented - simpler serial logging approach chosen
-
-### 3. Games Screen Entry (NOT APPLIED)
-- The Packet Monitor entry was not added to GamesScreen since the direct serial logging approach was preferred
-
-## Notes
-- The debug logging is designed to be "set it and forget it" - it will print debug info every 5 seconds if the serial monitor is open
-- When serial monitor is closed, the overhead is minimal (just one `millis()` call every 5 seconds)
-- The 5-second interval was chosen to be non-intrusive while still providing periodic debugging capability
-- To change the debug interval, modify `DEBUG_INTERVAL_MS` constant in `MessageService::loop()`
+## Relevant Files
+- `src/Screens/MainMenu.cpp`: Menu looping logic.
+- `src/Screens/MainMenu.h`: Menu class definition.
+- `src/Services/MessageService.cpp`: Debug logging.
+- `src/UI/InboxScreen.cpp`: Broadcast All feature.
+- `src/Screens/BroadcastScreen.cpp`: Broadcast logic reference.
