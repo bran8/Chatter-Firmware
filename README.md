@@ -1,7 +1,7 @@
 
 # Chatter 2.0 Green
 
-This fork adds my custom tweaks for Chatter 2.0.
+This fork adds my custom tweaks for Chatter 2.0.  Agentic Engineer assisted, peer review welcome.
 
 **Key improvements:**
 
