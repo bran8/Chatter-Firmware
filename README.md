@@ -5,11 +5,12 @@ This fork adds my custom tweaks for Chatter 2.0.
 
 **Key improvements:**
 
-**Broadcast to all friends** – send one message that goes to all your friends
-**Retry until Ack** – all sends are retried until acknowledged
-**Smarter acknowledgements** – incoming messages play notifcation sound until silenced
-**Canned responses** – Long Press to type a pre-canned message
+- **Broadcast to all friends** – send one message that goes to all your friends
+- **Retry until Ack** – all sends are retried until acknowledged
+- **Smarter acknowledgements** – incoming messages play notifcation sound until silenced
+- **Canned responses** – Long Press to type a pre-canned message
 
+  
 
 
 # Chatter Firmware
