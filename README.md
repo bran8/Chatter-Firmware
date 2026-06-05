@@ -6,12 +6,13 @@ This fork adds my custom tweaks for Chatter 2.0.  Agentic Engineering assisted, 
 **Key improvements:**
 
 - **Broadcast to all friends** – send one message that goes to all your friends
-- **Retry until Ack** – all sends are retried until acknowledged
-- **Smarter acknowledgements** – incoming messages play notifcation sound until silenced
+- **Retry until Ack** – all sends are retried until acknowledged by receiver
+- **Incoming Annoyance** – incoming messages are important, play sound continuiously until silenced
 - **Canned responses** – Long Press to type a pre-canned message
+- **Wrap around menu** – Mainmenu wraps around sacrificing some animation for Quality of Life
 
 
-Setup that worked for me:  
+Detailed Setup that worked for me: 
 
 I deploy firmware from a Windows 11 PC running Arduino IDE version 2.3.4   (https://www.arduino.cc/en/software/)  
 
@@ -25,7 +26,7 @@ Search for "circuitmess"
 
 Install 1.8.3 for ESP32 Boards by CircuitMess
 
-Then on the Select Board pull-down selector, you can find the "Boards" called: Chatter 2.0 by CircuitMess
+Then on the Select Board pull-down selector, you can find the "Boards" called: **Chatter 2.0 by CircuitMess**
 
 On my system, it connected to COM4 Serial Port (USB)
 
