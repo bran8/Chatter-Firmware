@@ -20,7 +20,6 @@ const char* FSLVGL::cached[] = {
 		"/Menu/Label/Games.bin",
 		"/Menu/Label/Settings.bin",
 		"/Games/Icons/Invaders.bin",
-		"/Games/Icons/Pong.bin",
 		"/Games/Icons/Snake.bin",
 		"/Games/Icons/Space.bin",
 		"/Lock/Locked.bin",

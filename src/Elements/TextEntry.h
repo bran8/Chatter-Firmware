@@ -74,6 +74,13 @@ private:
 	} inputMode = T9;
 	void setInputMode(InputMode mode);
 
+	// Quick T9<->aa toggle: a single BTN_R press from T9 jumps to "aa" (for a
+	// quick word edit) and a single press back from "aa" returns straight to T9
+	// instead of continuing the full T9->aa->Aa->AA->12 cycle. Pressing BTN_R
+	// again quickly (within modeQuickToggleWindowMs) resumes the normal cycle.
+	uint32_t modeEnterTime = 0;
+	static const uint32_t modeQuickToggleWindowMs = 600;
+
 	// ── T9 predictive state ────────────────────────────────────────────────
 	std::string confirmedText;             // committed text (no in-progress word)
 	std::string t9Digits;                  // digits of the in-progress word

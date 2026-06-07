@@ -88,7 +88,6 @@ struct {
 		{ "/Emojis/15.bin",             2210 },
 		{ "/Games/Icons/Space.bin",     83090 },
 		{ "/Games/Icons/Snake.bin",     107985 },
-		{ "/Games/Icons/Pong.bin",      118686 },
 		{ "/Games/Icons/Invaders.bin",  101229 },
 		{ "/Games/Space/asteroidS.raw", 43126 },
 		{ "/Games/Space/player.gif",    146135 },

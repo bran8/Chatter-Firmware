@@ -27,7 +27,10 @@ const char* T9Dict::digitLetters(char digit){
 }
 
 void T9Dict::collectSubtree(uint16_t idx, std::string& prefix,
-							std::vector<std::pair<std::string, uint16_t>>& out){
+							std::vector<std::pair<std::string, uint16_t>>& out,
+							size_t limit){
+	if(nodes == nullptr || idx >= nodeCount) return;
+	if(out.size() >= limit) return;   // bail out early -- see header comment
 	const TrieNode& node = nodes[idx];
 	if(node.weight > 0){
 		out.emplace_back(prefix, node.weight);
@@ -35,18 +38,23 @@ void T9Dict::collectSubtree(uint16_t idx, std::string& prefix,
 
 	uint16_t first = node.first_child_index;
 	for(uint16_t c = first; c < first + node.child_count; c++){
+		if(c >= nodeCount) break;
+		if(out.size() >= limit) return;
 		prefix.push_back(nodes[c].character);
-		collectSubtree(c, prefix, out);
+		collectSubtree(c, prefix, out, limit);
 		prefix.pop_back();
 	}
 }
 
 void T9Dict::descend(uint16_t idx, const std::string& digits, size_t depth,
 					 std::string& prefix,
-					 std::vector<std::pair<std::string, uint16_t>>& out){
+					 std::vector<std::pair<std::string, uint16_t>>& out,
+					 size_t limit){
+	if(nodes == nullptr || idx >= nodeCount) return;
+	if(out.size() >= limit) return;
 	if(depth == digits.size()){
 		// All digits consumed: every word in this subtree shares the prefix.
-		collectSubtree(idx, prefix, out);
+		collectSubtree(idx, prefix, out, limit);
 		return;
 	}
 
@@ -56,10 +64,12 @@ void T9Dict::descend(uint16_t idx, const std::string& digits, size_t depth,
 
 	uint16_t first = node.first_child_index;
 	for(uint16_t c = first; c < first + node.child_count; c++){
+		if(c >= nodeCount) break;
+		if(out.size() >= limit) return;
 		char cc = nodes[c].character;
 		if(std::strchr(letters, cc) != nullptr){
 			prefix.push_back(cc);
-			descend(c, digits, depth + 1, prefix, out);
+			descend(c, digits, depth + 1, prefix, out, limit);
 			prefix.pop_back();
 		}
 	}
@@ -72,8 +82,18 @@ std::vector<std::pair<std::string, uint16_t>> T9Dict::getMatches(
 	if(nodes == nullptr) init();
 	if(digits.empty()) return out;
 
+	// Collect at most a handful of candidate-pages worth of entries -- we only
+	// ever return `maxResults`, so there is no need to gather (and heap-allocate
+	// strings for) every one of the possibly-thousands of words that share a
+	// short prefix like "2" (a/b/c). This is the fix for the heap-exhaustion
+	// crash/reboot observed when typing the first letter of a word in T9 mode.
+	size_t limit = maxResults * 8;
+	if(limit < 64) limit = 64;
+
 	std::string prefix;
-	descend(0, digits, 0, prefix, out);
+	prefix.reserve(16);
+	out.reserve(limit < 256 ? limit : 256);
+	descend(0, digits, 0, prefix, out, limit);
 
 	std::sort(out.begin(), out.end(),
 			  [](const std::pair<std::string, uint16_t>& a,

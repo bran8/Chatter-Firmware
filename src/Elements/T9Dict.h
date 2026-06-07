@@ -48,11 +48,20 @@ private:
 
 	// Phase 1: walk the digit path. Phase 2 (collectSubtree): gather every word
 	// below the reached node, since all of them share the typed prefix.
+	//
+	// `limit` bounds how many entries we ever push into `out`. Short prefixes
+	// (e.g. a single digit covering "abc") can match thousands of words; without
+	// a cap, collecting+sorting all of them allocates a huge vector of strings on
+	// every keystroke, which can exhaust heap and crash/reboot the device. We
+	// only need the top `maxResults`, so it's safe to stop early — the final
+	// sort+resize in getMatches() still picks the best of whatever we collected.
 	static void descend(uint16_t idx, const std::string& digits, size_t depth,
 						 std::string& prefix,
-						 std::vector<std::pair<std::string, uint16_t>>& out);
+						 std::vector<std::pair<std::string, uint16_t>>& out,
+						 size_t limit);
 	static void collectSubtree(uint16_t idx, std::string& prefix,
-							   std::vector<std::pair<std::string, uint16_t>>& out);
+							   std::vector<std::pair<std::string, uint16_t>>& out,
+							   size_t limit);
 };
 
 #endif //CHATTER_FIRMWARE_T9DICT_H

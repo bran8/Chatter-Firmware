@@ -7,6 +7,8 @@
 #include "../Fonts/font.h"
 #include "../Services/BuzzerService.h"
 
+std::map<UID_t, std::string> ConvoScreen::drafts;
+
 ConvoScreen::ConvoScreen(UID_t uid) : convo(uid){
 	fren = Storage.Friends.get(uid);
 	Profile profile = fren.profile;
@@ -37,6 +39,12 @@ ConvoScreen::ConvoScreen(UID_t uid) : convo(uid){
     textEntry->setCannedMessage(BTN_8, "Traffic is bad");
     textEntry->setCannedMessage(BTN_9, "Confirmed");
 	textEntry->setCannedMessage(BTN_0, "All is good!");
+
+	// Restore any unfinished message left over from last time we were here.
+	{
+		auto it = drafts.find(uid);
+		if(it != drafts.end()) textEntry->setText(it->second);
+	}
 
 	lv_obj_set_style_border_width(user, 1, 0);
 	lv_obj_set_style_border_color(user, lv_color_white(), 0);
@@ -122,6 +130,13 @@ void ConvoScreen::onStop(){
 	Input::getInstance()->removeListener(this);
 	Buzz.setNoBuzzUID(ESP.getEfuseMac());
 	convoBox->stop();
+
+	// Stash whatever's still being typed so we can pick it back up later --
+	// leaving the chat (even via BTN_BACK while typing) must not lose it.
+	std::string draft = textEntry->getText();
+	if(!draft.empty()) drafts[convo] = draft;
+	else drafts.erase(convo);
+
 	textEntry->stop();
 }
 
@@ -179,6 +194,7 @@ void ConvoScreen::sendMessage(){
 	if(text == "") return;
 
 	textEntry->clear();
+	drafts.erase(convo);
 
 	Message message = Messages.sendText(convo, text);
 	if(message.uid == 0) return;
@@ -193,12 +209,11 @@ void ConvoScreen::textEntryConfirm(){
 }
 
 void ConvoScreen::textEntryCancel(){
+	// BTN_BACK while typing now exits the chat outright (rather than merely
+	// closing the keyboard) -- the in-progress message is preserved as a draft
+	// by onStop() and restored next time this conversation is opened.
 	textEntry->stop();
-
-	if(textEntry->getText().empty()){
-		pop();
-		return;
-	}
+	pop();
 }
 
 void ConvoScreen::textEntryLR(){

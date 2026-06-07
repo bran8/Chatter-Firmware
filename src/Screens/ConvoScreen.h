@@ -2,6 +2,8 @@
 #define CHATTER_FIRMWARE_CONVOSCREEN_H
 
 #include <Arduino.h>
+#include <map>
+#include <string>
 #include "../Interface/LVScreen.h"
 #include "../Elements/TextEntry.h"
 #include "../Types.hpp"
@@ -22,6 +24,11 @@ private:
 	void buttonPressed(uint i) override;
 	Friend fren;
 	const UID_t convo = 0;
+
+	// Per-conversation unsent-message drafts, kept in memory across screen
+	// instances so leaving mid-message and coming back later restores it
+	// (cleared only once the message is actually sent -- see sendMessage()).
+	static std::map<UID_t, std::string> drafts;
 
 	void textEntryConfirm();
 	void textEntryCancel();

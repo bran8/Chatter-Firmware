@@ -1,9 +1,15 @@
 #include "BatteryElement.h"
+#include "../Fonts/font.h"
 
 BatteryElement::BatteryElement(lv_obj_t* parent) : LVObject(parent){
 	lv_obj_set_size(obj, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
 
 	label = lv_label_create(obj);
+	// Smaller font than the default label, nudged right so it isn't flush
+	// against the edge of its container.
+	lv_obj_set_style_text_font(label, &pixelbasic7, 0);
+	lv_obj_set_style_text_color(label, lv_color_white(), 0);
+	lv_obj_set_style_pad_left(label, 4, 0);
 
 	voltage = Battery.getVoltage();
 	updateLabel();

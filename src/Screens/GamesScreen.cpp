@@ -14,14 +14,12 @@
 #include "../FSLVGL.h"
 #include "../Games/Invaders/SpaceInvaders.h"
 #include "../Games/Snake/Snake.h"
-#include "../Games/Pong/Bonk.h"
 #include "../Elements/GameItem.h"
 
 const GamesScreen::GameInfo GamesScreen::Games[] = {
 		{ "Space rocks", "S:/Games/Icons/Space.bin", [](GamesScreen* gamesScreen) -> Game* { return new SpaceRocks(gamesScreen); }, "/Games/Space/splash.raw" },
 		{ "Invaderz", "S:/Games/Icons/Invaders.bin", [](GamesScreen* gamesScreen) -> Game* { return new SpaceInvaders::SpaceInvaders(gamesScreen); } },
 		{ "Snake", "S:/Games/Icons/Snake.bin", [](GamesScreen* gamesScreen) -> Game* { return new Snake::Snake(gamesScreen); } },
-		{ "Bonk", "S:/Games/Icons/Pong.bin", [](GamesScreen* gamesScreen) -> Game* { return new Bonk::Bonk(gamesScreen); } },
 };
 
 GamesScreen::GamesScreen() : LVScreen(), apop(this){

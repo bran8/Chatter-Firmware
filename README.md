@@ -6,10 +6,14 @@ This fork adds my custom tweaks for Chatter 2.0.  Agentic Engineering assisted, 
 **Key improvements:**
 
 - **Broadcast to all friends** – send one message that goes to all your friends
+- *T9* - Basic version of T9 word entry using unrefined frequency wordlist 
 - **Retry until Ack** – all sends are retried until acknowledged by receiver
 - **Incoming Annoyance** – incoming messages are important, play sound continuiously until silenced
 - **Canned responses** – Long Press to type a pre-canned message
-- **Wrap around menu** – Mainmenu wraps around sacrificing some animation for Quality of Life
+
+Quality of Life
+- Wrap around menus (sacrificing some animation)
+- Keep draft message
 
 
 Detailed Setup that worked for me: 

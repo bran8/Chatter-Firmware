@@ -23,8 +23,10 @@ const char* TextEntry::characters[] = {
 		" 0"
 };
 
-// Punctuation cycled by BTN_1 while in T9 mode (mirrors characters[0]).
-static const char* T9_PUNCT = ".,?!+-:()*1";
+// Punctuation cycled by BTN_1 while in T9 mode. Exclamation/question lead
+// (most urgently needed -- "the typer wants an expletive, not a comma"),
+// followed by the rest of the multi-tap set (mirrors characters[0]).
+static const char* T9_PUNCT = "!?.,+-:()*1";
 
 char* TextEntry::charMap = nullptr;
 
@@ -336,13 +338,29 @@ std::vector<std::string> TextEntry::buildCandidates(const std::string& digits) c
 	std::vector<std::string> out;
 	std::unordered_set<std::string> seen;
 
+	// --- DEBUG: narrowing down the post-word-completion crash/reboot ---------
+	uint32_t heapBefore = ESP.getFreeHeap();
+	printf("[T9 DEBUG] buildCandidates('%s') heapBefore=%u\n", digits.c_str(), (unsigned) heapBefore);
+
+	auto custom = CustomDict.getMatches(digits, 8);
+	printf("[T9 DEBUG]   CustomDict.getMatches -> %u results, heap=%u\n",
+		   (unsigned) custom.size(), (unsigned) ESP.getFreeHeap());
+
+	auto dict = T9Dict::getMatches(digits, 16);
+	printf("[T9 DEBUG]   T9Dict.getMatches -> %u results, heap=%u\n",
+		   (unsigned) dict.size(), (unsigned) ESP.getFreeHeap());
+
 	// Custom (learned) words first, then the static dictionary.
-	for(const auto& p : CustomDict.getMatches(digits, 8)){
+	for(const auto& p : custom){
 		if(seen.insert(p.first).second) out.push_back(p.first);
 	}
-	for(const auto& p : T9Dict::getMatches(digits, 16)){
+	for(const auto& p : dict){
 		if(seen.insert(p.first).second) out.push_back(p.first);
 	}
+
+	printf("[T9 DEBUG]   buildCandidates done: %u merged, heapAfter=%u (delta=%d)\n",
+		   (unsigned) out.size(), (unsigned) ESP.getFreeHeap(),
+		   (int) heapBefore - (int) ESP.getFreeHeap());
 	return out;
 }
 
@@ -353,6 +371,9 @@ void TextEntry::t9AppendDigit(char digit){
 	}
 
 	std::string trial = t9Digits + digit;
+	printf("[T9 DEBUG] t9AppendDigit('%c') trial='%s' confirmedText='%s' heap=%u\n",
+		   digit, trial.c_str(), confirmedText.c_str(), (unsigned) ESP.getFreeHeap());
+
 	std::vector<std::string> cands = buildCandidates(trial);
 	if(cands.empty()){
 		// No dictionary or custom word starts with this digit sequence.
@@ -364,6 +385,7 @@ void TextEntry::t9AppendDigit(char digit){
 	t9Candidates = std::move(cands);
 	t9MatchIndex = 0;
 	updateTextarea();
+	printf("[T9 DEBUG] t9AppendDigit done, heap=%u\n", (unsigned) ESP.getFreeHeap());
 }
 
 void TextEntry::t9Backspace(){
@@ -389,6 +411,10 @@ void TextEntry::t9Backspace(){
 }
 
 void TextEntry::t9CommitWord(bool appendSpace){
+	printf("[T9 DEBUG] t9CommitWord(appendSpace=%d) enter: t9Digits='%s' word='%s' confirmedText='%s' heap=%u\n",
+		   (int) appendSpace, t9Digits.c_str(), currentT9Word().c_str(),
+		   confirmedText.c_str(), (unsigned) ESP.getFreeHeap());
+
 	if(!t9Digits.empty()){
 		confirmedText += currentT9Word();
 	}
@@ -398,7 +424,13 @@ void TextEntry::t9CommitWord(bool appendSpace){
 	t9Digits.clear();
 	t9Candidates.clear();
 	t9MatchIndex = 0;
+
+	printf("[T9 DEBUG] t9CommitWord -> confirmedText='%s' (len=%u) heap=%u, calling updateTextarea\n",
+		   confirmedText.c_str(), (unsigned) confirmedText.size(), (unsigned) ESP.getFreeHeap());
+
 	updateTextarea();
+
+	printf("[T9 DEBUG] t9CommitWord done, heap=%u\n", (unsigned) ESP.getFreeHeap());
 }
 
 void TextEntry::t9CyclePunct(){
@@ -451,8 +483,18 @@ void TextEntry::updateTextarea(){
 		text += currentT9Word();
 		text += "#";
 	}
+
+	printf("[T9 DEBUG] updateTextarea: text='%s' (len=%u) heap=%u, before lv_textarea_set_text\n",
+		   text.c_str(), (unsigned) text.size(), (unsigned) ESP.getFreeHeap());
+
 	lv_textarea_set_text(entry, text.c_str());
+
+	printf("[T9 DEBUG] updateTextarea: lv_textarea_set_text returned, heap=%u, scrolling\n",
+		   (unsigned) ESP.getFreeHeap());
+
 	lv_obj_scroll_to_x(entry, LV_COORD_MAX, LV_ANIM_OFF);
+
+	printf("[T9 DEBUG] updateTextarea done, heap=%u\n", (unsigned) ESP.getFreeHeap());
 }
 
 void TextEntry::t9ButtonPressed(uint i){
@@ -622,7 +664,23 @@ void TextEntry::buttonReleased(uint i){
 		currentKey = -1;
 	}
 
-	setInputMode((InputMode) ((inputMode + 1) % InputMode::COUNT));
+	uint32_t now = millis();
+
+	if(inputMode == T9){
+		// T9 -> aa: a quick detour for a one-off word edit.
+		setInputMode(MULTI_LOWER);
+		modeEnterTime = now;
+	}else if(inputMode == MULTI_LOWER && modeEnterTime != 0
+			 && (now - modeEnterTime) >= modeQuickToggleWindowMs){
+		// First press back out of "aa" after some time editing -> snap straight
+		// back to T9 instead of continuing through Aa/AA/12.
+		setInputMode(T9);
+		modeEnterTime = 0;
+	}else{
+		// Either continuing to press rapidly (user wants the full cycle), or
+		// already past "aa" -> behave like the normal mode cycle.
+		setInputMode((InputMode) ((inputMode + 1) % InputMode::COUNT));
+	}
 }
 
 void TextEntry::loop(uint micros){
