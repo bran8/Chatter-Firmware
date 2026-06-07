@@ -5,13 +5,47 @@
 #include <Loop/LoopManager.h>
 #include <Input/Input.h>
 #include <Settings.h>
+#include <SPIFFS.h>
+
+#define KEYPAD_SOUND_PATH "/keypad_sound.txt"
 
 BuzzerService Buzz;
 
 
 void BuzzerService::begin(){
+	loadKeypadSound();
 	Messages.addReceivedListener(this);
 	Input::getInstance()->addListener(this);
+}
+
+void BuzzerService::loadKeypadSound(){
+	keypadSoundsEnabled = true;   // default ON when no file exists yet
+	if(!SPIFFS.exists(KEYPAD_SOUND_PATH)) return;
+
+	File f = SPIFFS.open(KEYPAD_SOUND_PATH, "r");
+	if(!f) return;
+	String s = f.readStringUntil('\n');
+	f.close();
+	s.trim();
+	keypadSoundsEnabled = (s == "1" || s == "on" || s == "true");
+}
+
+void BuzzerService::setKeypadSounds(bool enabled){
+	keypadSoundsEnabled = enabled;
+	File f = SPIFFS.open(KEYPAD_SOUND_PATH, "w");
+	if(!f) return;
+	f.print(enabled ? "1" : "0");
+	f.close();
+}
+
+bool BuzzerService::getKeypadSounds() const{
+	return keypadSoundsEnabled;
+}
+
+void BuzzerService::emitBeep(){
+	if(!Settings.get().sound) return;
+	if(!keypadSoundsEnabled) return;
+	Piezo.tone(150, 100);   // 150 Hz for 100 ms
 }
 
 const std::unordered_map<uint8_t, uint16_t> BuzzerService::noteMap = {
@@ -71,7 +105,11 @@ void BuzzerService::buttonPressed(uint i){
     if(gameStarted) return;
     if(!Settings.get().sound) return;
 
-	Piezo.tone(noteMap.at(i), 25);
+	// Keypad clicks are gated by their own setting; the alert-cancel bookkeeping
+	// below must still run so any button press silences an incoming-message alert.
+	if(keypadSoundsEnabled){
+		Piezo.tone(noteMap.at(i), 25);
+	}
     alertActive = false;
     noteIndex = 0;
     noteTime = 0;

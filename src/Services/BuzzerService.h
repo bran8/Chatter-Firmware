@@ -11,9 +11,21 @@ public:
 	void setNoBuzzUID(UID_t noBuzzUid);
 
 	void setMuteEnter(bool muteEnter);
+
+	// Keypad sounds: persisted separately to /keypad_sound.txt on SPIFFS so the
+	// toggle survives reboots without modifying the external Settings library.
+	void setKeypadSounds(bool enabled);
+	bool getKeypadSounds() const;
+
+	// Short low error tone for invalid T9 keystrokes.
+	void emitBeep();
 private:
 	void buttonPressed(uint i) override;
 	void msgReceived(const Message &message) override;
+
+	void loadKeypadSound();
+
+	bool keypadSoundsEnabled = true;
 
 	UID_t noBuzzUID = ESP.getEfuseMac();
 

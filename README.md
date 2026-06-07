@@ -34,7 +34,7 @@ Click File->Open-> **Chatter-Firmware.ino**
 
 Click the "Checkmark" to verify.  It will "Compiling sketch..." for a few minutes.
 
-I get a conflict error with LV_ library however it does not stop me from Uploading the firmware to the device successfully.
+I get a conflict error with overlapping candidates; void Sprite::pushImage and void lgfx::v1::LGFXBase::pushImage.  It does not stop me from Uploading the sketch to the device successfully.
 
 If you need to factory restore the device, login to https://code.circuitmess.com/ and click on Restore Firmware in the top-right corner. 
 

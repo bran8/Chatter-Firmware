@@ -134,6 +134,70 @@ SettingsScreen::SettingsScreen() : LVScreen(){
 	lv_obj_set_style_bg_opa(soundSwitch, LV_OPA_0, 0);
 	lv_obj_set_size(soundSwitch, 25, 15);
 
+	//keypad sound ON/OFF
+	keypadSound = lv_obj_create(obj);
+	lv_obj_set_height(keypadSound, LV_SIZE_CONTENT);
+	lv_obj_set_width(keypadSound, lv_pct(100));
+	lv_obj_set_layout(keypadSound, LV_LAYOUT_FLEX);
+	lv_obj_set_flex_flow(keypadSound, LV_FLEX_FLOW_ROW);
+	lv_obj_set_flex_align(keypadSound, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+	lv_obj_set_style_pad_all(keypadSound, 3, 0);
+	lv_obj_set_style_bg_opa(keypadSound, 0, 0);
+	lv_obj_add_style(keypadSound, &style_focused, selFocus);
+	lv_obj_add_style(keypadSound, &style_def, sel);
+
+	lv_obj_t* keypadSoundLabel = lv_label_create(keypadSound);
+	lv_obj_set_style_text_font(keypadSoundLabel, &pixelbasic7, 0);
+	lv_obj_set_style_text_color(keypadSoundLabel, lv_color_white(), 0);
+	lv_obj_set_style_pad_top(keypadSoundLabel, 2, 0);
+	lv_label_set_text(keypadSoundLabel, "Keypad sound");
+
+	keypadSoundSwitch = lv_switch_create(keypadSound);
+	lv_obj_add_flag(keypadSoundSwitch, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+	lv_obj_clear_flag(keypadSoundSwitch, LV_OBJ_FLAG_CHECKABLE);
+
+	lv_obj_add_event_cb(keypadSoundSwitch, [](lv_event_t* event){
+		lv_obj_t* obj = static_cast<lv_obj_t*>(event->user_data);
+		lv_obj_add_state(lv_obj_get_parent(lv_event_get_target(event)), LV_STATE_FOCUSED);
+		lv_obj_scroll_to_y(obj, 0, LV_ANIM_ON);
+		Buzz.setMuteEnter(true);
+	}, LV_EVENT_FOCUSED, obj);
+
+	lv_obj_add_event_cb(keypadSoundSwitch, [](lv_event_t* event){
+		lv_obj_clear_state(lv_obj_get_parent(lv_event_get_target(event)), LV_STATE_FOCUSED);
+		Buzz.setMuteEnter(false);
+	}, LV_EVENT_DEFOCUSED, nullptr);
+
+	lv_obj_add_event_cb(keypadSoundSwitch, [](lv_event_t* event){
+		auto screen = static_cast<SettingsScreen*>(event->user_data);
+		screen->pop();
+	}, LV_EVENT_CANCEL, this);
+
+	lv_obj_add_event_cb(keypadSoundSwitch, [](lv_event_t* event){
+		auto sw = lv_event_get_target(event);
+		Buzz.setKeypadSounds(lv_obj_get_state(sw) & LV_STATE_CHECKED);
+	}, LV_EVENT_VALUE_CHANGED, nullptr);
+
+	//make the switch checkable ONLY when pressed with the ENTER key
+	lv_obj_add_event_cb(keypadSoundSwitch, [](lv_event_t* event){
+		lv_obj_add_flag(lv_event_get_target(event), LV_OBJ_FLAG_CHECKABLE);
+	}, LV_EVENT_PRESSED, nullptr);
+	lv_obj_add_event_cb(keypadSoundSwitch, [](lv_event_t* event){
+		lv_obj_clear_flag(lv_event_get_target(event), LV_OBJ_FLAG_CHECKABLE);
+	}, LV_EVENT_RELEASED, nullptr);
+
+	lv_group_add_obj(inputGroup, keypadSoundSwitch);
+
+	lv_obj_remove_style(keypadSoundSwitch, nullptr, LV_STATE_FOCUS_KEY);
+	lv_obj_set_style_border_width(keypadSoundSwitch, 1, LV_PART_INDICATOR | LV_STATE_CHECKED);
+	lv_obj_set_style_border_color(keypadSoundSwitch, lv_color_white(), LV_PART_INDICATOR | LV_STATE_CHECKED);
+	lv_obj_set_style_bg_color(keypadSoundSwitch, lv_color_hex(0x813df5), LV_PART_INDICATOR | LV_STATE_CHECKED);
+	lv_obj_set_style_bg_opa(keypadSoundSwitch, LV_OPA_100, LV_PART_INDICATOR | LV_STATE_CHECKED);
+	lv_obj_set_style_border_width(keypadSoundSwitch, 1, 0);
+	lv_obj_set_style_border_color(keypadSoundSwitch, lv_color_white(), 0);
+	lv_obj_set_style_bg_opa(keypadSoundSwitch, LV_OPA_0, 0);
+	lv_obj_set_size(keypadSoundSwitch, 25, 15);
+
 	//sleepTime
 	sleepTime = lv_obj_create(obj);
 	lv_obj_set_height(sleepTime, LV_SIZE_CONTENT);
@@ -508,6 +572,9 @@ SettingsScreen::~SettingsScreen(){
 void SettingsScreen::onStarting(){
 	if(Settings.get().sound){
 		lv_obj_add_state(soundSwitch, LV_STATE_CHECKED);
+	}
+	if(Buzz.getKeypadSounds()){
+		lv_obj_add_state(keypadSoundSwitch, LV_STATE_CHECKED);
 	}
 	lv_slider_set_value(sleepSlider, Settings.get().sleepTime, LV_ANIM_OFF);
 	lv_slider_set_value(shutdownSlider, Settings.get().shutdownTime, LV_ANIM_OFF);

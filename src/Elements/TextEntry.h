@@ -5,6 +5,7 @@
 #include <lvgl.h>
 #include "../Interface/LVObject.h"
 #include <string>
+#include <vector>
 #include <Input/InputListener.h>
 #include <Loop/LoopListener.h>
 
@@ -64,10 +65,34 @@ private:
 
 	bool btnRHeld = false;
 
-	enum CapsMode {
-		LOWER, SINGLE, UPPER, COUNT
-	} capsMode = LOWER;
-	void setCapsMode(CapsMode mode);
+	uint32_t maxLength; // user-requested max length (the textarea limit is relaxed in T9 mode)
+
+	// Input modes cycled by short-pressing BTN_R: T9 prediction, then the three
+	// multi-tap caps levels, then numeric. Replaces the old CapsMode.
+	enum InputMode {
+		T9, MULTI_LOWER, MULTI_SINGLE, MULTI_UPPER, MULTI_NUMERIC, COUNT
+	} inputMode = T9;
+	void setInputMode(InputMode mode);
+
+	// ── T9 predictive state ────────────────────────────────────────────────
+	std::string confirmedText;             // committed text (no in-progress word)
+	std::string t9Digits;                  // digits of the in-progress word
+	std::vector<std::string> t9Candidates; // merged custom + dictionary candidates
+	int t9MatchIndex = 0;                  // selected candidate
+
+	bool t9PunctActive = false;            // BTN_1 punctuation multi-tap in progress
+	uint8_t t9PunctIndex = 0;
+
+	void t9ButtonPressed(uint i);
+	void t9AppendDigit(char digit);
+	void t9Backspace();
+	void t9CommitWord(bool appendSpace);
+	void t9CyclePunct();
+	void finishPunct();
+	void updateTextarea();
+	std::string currentT9Word() const;     // selected candidate, auto-capitalised
+	bool sentenceStart() const;            // true when the next letter starts a sentence
+	std::vector<std::string> buildCandidates(const std::string& digits) const;
 };
 
 #endif //CHATTER_FIRMWARE_TEXTENTRY_H

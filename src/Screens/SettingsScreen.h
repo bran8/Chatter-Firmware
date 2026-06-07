@@ -16,6 +16,7 @@ public:
 
 private:
 	lv_obj_t* sound;
+	lv_obj_t* keypadSound;
 	lv_obj_t* sleepTime;
 	lv_obj_t* shutdownTime;
 	lv_obj_t* screenBrightness;
@@ -24,6 +25,7 @@ private:
 	lv_obj_t* version;
 
 	lv_obj_t* soundSwitch;
+	lv_obj_t* keypadSoundSwitch;
 	lv_obj_t* sleepTimeLabel;
 	lv_obj_t* shutdownTimeLabel;
 	lv_obj_t* sleepSlider;

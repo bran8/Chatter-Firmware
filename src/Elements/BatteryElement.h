@@ -14,8 +14,10 @@ public:
 	void loop(uint micros) override;
 
 private:
-	lv_obj_t* img;
-	uint8_t level;
+	void updateLabel();
+
+	lv_obj_t* label;
+	uint16_t voltage;   // last reading in millivolts
 };
 
 

@@ -1,6 +1,7 @@
 #include <Loop/LoopManager.h>
 #include "MessageService.h"
 #include "LoRaService.h"
+#include "CustomDictService.h"
 #include "../Storage/Storage.h"
 #include <Settings.h>
 
@@ -31,6 +32,7 @@ void MessageService::begin(){
 }
 
 Message MessageService::sendText(UID_t convo, const std::string& text){
+	CustomDict.learnText(text);
 	Message message;
 	message.setText(text.substr(0, 60));
 	return sendMessage(convo, message);
@@ -218,6 +220,7 @@ void MessageService::receiveMessage(ReceivedPacket<MessagePacket>& packet){
 	if(packet.content->type == MessagePacket::TEXT){
 		TextMessage* text = reinterpret_cast<TextMessage*>(packet.content);
 		message.setText(text->text);
+		CustomDict.learnText(text->text);
 		delete text;
 	}else if(packet.content->type == MessagePacket::PIC){
 		PicMessage* pic = reinterpret_cast<PicMessage*>(packet.content);

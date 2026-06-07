@@ -11,6 +11,7 @@
 #include "src/Storage/Storage.h"
 #include "src/Services/LoRaService.h"
 #include "src/Services/MessageService.h"
+#include "src/Services/CustomDictService.h"
 #include "src/Elements/IntroScreen.h"
 #include "src/Interface/Pics.h"
 #include "src/Services/ProfileService.h"
@@ -121,6 +122,7 @@ void boot(){
 	FSLVGL::loadCache();
 
 	Storage.begin();
+	CustomDict.begin();   // load learned words before any message is processed
 	Messages.begin();
 
 	LoRa.begin();

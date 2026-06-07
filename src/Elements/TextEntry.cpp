@@ -1,9 +1,14 @@
 #include "TextEntry.h"
+#include "T9Dict.h"
 #include "../InputLVGL.h"
 #include "../Fonts/font.h"
+#include "../Services/CustomDictService.h"
+#include "../Services/BuzzerService.h"
 #include <Input/Input.h>
 #include <Pins.hpp>
 #include <Loop/LoopManager.h>
+#include <unordered_set>
+#include <cstring>
 
 const char* TextEntry::characters[] = {
 		".,?!+-:()*1",
@@ -17,6 +22,9 @@ const char* TextEntry::characters[] = {
 		"wxyz9",
 		" 0"
 };
+
+// Punctuation cycled by BTN_1 while in T9 mode (mirrors characters[0]).
+static const char* T9_PUNCT = ".,?!+-:()*1";
 
 char* TextEntry::charMap = nullptr;
 
@@ -34,6 +42,8 @@ const std::map<uint8_t, uint8_t> TextEntry::keyMap = {
 };
 
 TextEntry::TextEntry(lv_obj_t* parent, const std::string& text, uint32_t maxLength) : LVObject(parent){
+	this->maxLength = maxLength;
+
 	lv_obj_set_size(obj, lv_pct(100), LV_SIZE_CONTENT);
 	lv_obj_set_layout(obj, LV_LAYOUT_FLEX);
 	lv_obj_set_flex_flow(obj, LV_FLEX_FLOW_ROW);
@@ -47,6 +57,9 @@ TextEntry::TextEntry(lv_obj_t* parent, const std::string& text, uint32_t maxLeng
 	lv_textarea_set_one_line(entry, true);
 	lv_textarea_set_text(entry, text.c_str());
 	lv_textarea_set_max_length(entry, maxLength);
+
+	// Render the grey unconfirmed prediction via inline recolour markup.
+	lv_label_set_recolor(lv_textarea_get_label(entry), true);
 
 	lv_obj_set_style_border_width(entry, 1, 0);
 	lv_obj_set_style_border_opa(entry, LV_OPA_0, 0);
@@ -85,7 +98,20 @@ TextEntry::TextEntry(lv_obj_t* parent, const std::string& text, uint32_t maxLeng
 	lv_group_add_obj(inputGroup, entry);
 	lv_obj_clear_state(entry, LV_STATE_FOCUSED);
 
-	setCapsMode(LOWER);
+	// Start in T9: the textarea becomes a render of confirmedText + prediction,
+	// so relax its length limit and seed the confirmed text with the initial value.
+	T9Dict::init();
+	inputMode = T9;
+	confirmedText = text;
+	// In T9 the textarea is a pure render of confirmedText + recolour markup.
+	// Clearing accepted_chars AND max_length makes lv_textarea_set_text take its
+	// direct-label path, so the "#808080 ...#" markup survives (otherwise it is
+	// re-added char-by-char and the '#' is filtered out). The real length limit
+	// is enforced on confirmedText in t9AppendDigit().
+	lv_textarea_set_accepted_chars(entry, nullptr);
+	lv_textarea_set_max_length(entry, 0);
+	lv_label_set_text(capsText, "T9");
+	updateTextarea();
 
 	for(auto pair : keyMap){
 		setButtonHoldTime(pair.first, 500);
@@ -102,8 +128,27 @@ TextEntry::~TextEntry(){
 	LoopManager::removeListener(this);
 }
 
+void TextEntry::showCaps(bool show) {
+    if (!capsText) return;
+
+    if (show) {
+        lv_obj_clear_flag(capsText, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_add_flag(capsText, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
 void TextEntry::setText(const std::string& text){
-	lv_textarea_set_text(entry, text.c_str());
+	if(inputMode == T9){
+		confirmedText = text;
+		t9Digits.clear();
+		t9Candidates.clear();
+		t9MatchIndex = 0;
+		t9PunctActive = false;
+		updateTextarea();
+	}else{
+		lv_textarea_set_text(entry, text.c_str());
+	}
 }
 
 void TextEntry::setTextColor(lv_color_t color){
@@ -119,6 +164,12 @@ bool TextEntry::isActive() const{
 }
 
 std::string TextEntry::getText() const{
+	if(inputMode == T9){
+		// The textarea may hold recolour markup; return the clean text instead.
+		std::string t = confirmedText;
+		if(!t9Digits.empty()) t += currentT9Word();
+		return t;
+	}
 	return lv_textarea_get_text(entry);
 }
 
@@ -188,8 +239,14 @@ void TextEntry::stop(){
 	Input::getInstance()->removeListener(this);
 	active = false;
 
-	if(currentKey != -1 && capsMode == SINGLE){
-		setCapsMode(LOWER);
+	if(inputMode == T9){
+		// Fold any in-progress word into the textarea as plain text so getText()
+		// and the rendered text are both clean once editing ends.
+		finishPunct();
+		t9CommitWord(false);
+		lv_textarea_set_text(entry, confirmedText.c_str());
+	}else if(currentKey != -1 && inputMode == MULTI_SINGLE){
+		setInputMode(MULTI_LOWER);
 	}
 	btnRHeld = false;
 
@@ -210,7 +267,14 @@ void TextEntry::backspace(){
 	lv_textarea_del_char(entry);
 }
 
+// ── Multi-tap key entry (non-T9 modes) ──────────────────────────────────────
+
 void TextEntry::keyPress(uint8_t i){
+	if(inputMode == T9){
+		t9ButtonPressed(i);
+		return;
+	}
+
 	if(i == BTN_L){
 		backspace();
 		return;
@@ -220,13 +284,21 @@ void TextEntry::keyPress(uint8_t i){
 	uint8_t key = keyMap.at(i);
 	const char* chars = characters[key];
 
+	if(inputMode == MULTI_NUMERIC){
+		// Type the numeric glyph (last char of the set) directly, no cycling.
+		if(getText().size() == lv_textarea_get_max_length(entry)) return;
+		lv_textarea_add_char(entry, chars[strnlen(chars, 16) - 1]);
+		currentKey = -1;
+		keyTime = 0;
+		return;
+	}
+
 	if(key == currentKey && keyTime != 0){
 		index = (index + 1) % strnlen(chars, 16);
 		char character = chars[index];
-		if(capsMode == SINGLE || capsMode == UPPER){
+		if(inputMode == MULTI_SINGLE || inputMode == MULTI_UPPER){
 			character = toUpperCase(character);
 		}
-
 
 		lv_textarea_del_char(entry);
 		lv_textarea_add_char(entry, character);
@@ -237,14 +309,14 @@ void TextEntry::keyPress(uint8_t i){
 	}else{
 		if(getText().size() == lv_textarea_get_max_length(entry)) return;
 
-		if(currentKey != -1 && currentKey != key && capsMode == SINGLE){
-			setCapsMode(LOWER);
+		if(currentKey != -1 && currentKey != key && inputMode == MULTI_SINGLE){
+			setInputMode(MULTI_LOWER);
 		}
 
 		currentKey = key;
 		index = 0;
 		char character = chars[index];
-		if(capsMode == SINGLE || capsMode == UPPER){
+		if(inputMode == MULTI_SINGLE || inputMode == MULTI_UPPER){
 			character = toUpperCase(character);
 		}
 
@@ -258,10 +330,180 @@ void TextEntry::keyPress(uint8_t i){
 	keyTime = millis();
 }
 
-void TextEntry::buttonPressed(uint i){
+// ── T9 predictive entry ─────────────────────────────────────────────────────
+
+std::vector<std::string> TextEntry::buildCandidates(const std::string& digits) const{
+	std::vector<std::string> out;
+	std::unordered_set<std::string> seen;
+
+	// Custom (learned) words first, then the static dictionary.
+	for(const auto& p : CustomDict.getMatches(digits, 8)){
+		if(seen.insert(p.first).second) out.push_back(p.first);
+	}
+	for(const auto& p : T9Dict::getMatches(digits, 16)){
+		if(seen.insert(p.first).second) out.push_back(p.first);
+	}
+	return out;
+}
+
+void TextEntry::t9AppendDigit(char digit){
+	if(maxLength != (uint32_t) -1 && confirmedText.size() >= maxLength){
+		Buzz.emitBeep();
+		return;
+	}
+
+	std::string trial = t9Digits + digit;
+	std::vector<std::string> cands = buildCandidates(trial);
+	if(cands.empty()){
+		// No dictionary or custom word starts with this digit sequence.
+		Buzz.emitBeep();
+		return;
+	}
+
+	t9Digits = trial;
+	t9Candidates = std::move(cands);
+	t9MatchIndex = 0;
+	updateTextarea();
+}
+
+void TextEntry::t9Backspace(){
+	finishPunct();
+
+	if(!t9Digits.empty()){
+		t9Digits.pop_back();
+		if(t9Digits.empty()){
+			t9Candidates.clear();
+		}else{
+			t9Candidates = buildCandidates(t9Digits);
+		}
+		t9MatchIndex = 0;
+		updateTextarea();
+		return;
+	}
+
+	// No in-progress word: delete the last confirmed character.
+	if(!confirmedText.empty()){
+		confirmedText.pop_back();
+		updateTextarea();
+	}
+}
+
+void TextEntry::t9CommitWord(bool appendSpace){
+	if(!t9Digits.empty()){
+		confirmedText += currentT9Word();
+	}
+	if(appendSpace){
+		confirmedText += ' ';
+	}
+	t9Digits.clear();
+	t9Candidates.clear();
+	t9MatchIndex = 0;
+	updateTextarea();
+}
+
+void TextEntry::t9CyclePunct(){
+	// Commit any in-progress word first (no trailing space).
+	if(!t9Digits.empty()) t9CommitWord(false);
+
+	size_t len = strlen(T9_PUNCT);
+	if(t9PunctActive && (millis() - keyTime) < 1000){
+		if(!confirmedText.empty()) confirmedText.pop_back();
+		t9PunctIndex = (t9PunctIndex + 1) % len;
+	}else{
+		t9PunctActive = true;
+		t9PunctIndex = 0;
+		LoopManager::addListener(this);
+	}
+	confirmedText += T9_PUNCT[t9PunctIndex];
+	keyTime = millis();
+	updateTextarea();
+}
+
+void TextEntry::finishPunct(){
+	if(t9PunctActive){
+		t9PunctActive = false;
+		keyTime = 0;
+		LoopManager::removeListener(this);
+	}
+}
+
+std::string TextEntry::currentT9Word() const{
+	if(t9Candidates.empty()) return std::string();
+	std::string w = t9Candidates[t9MatchIndex];
+	if(sentenceStart() && !w.empty()){
+		w[0] = toUpperCase(w[0]);
+	}
+	return w;
+}
+
+bool TextEntry::sentenceStart() const{
+	int i = (int) confirmedText.size() - 1;
+	while(i >= 0 && confirmedText[i] == ' ') i--;
+	if(i < 0) return true;
+	char c = confirmedText[i];
+	return c == '.' || c == '!' || c == '?';
+}
+
+void TextEntry::updateTextarea(){
+	std::string text = confirmedText;
+	if(!t9Digits.empty()){
+		text += "#808080 ";
+		text += currentT9Word();
+		text += "#";
+	}
+	lv_textarea_set_text(entry, text.c_str());
+	lv_obj_scroll_to_x(entry, LV_COORD_MAX, LV_ANIM_OFF);
+}
+
+void TextEntry::t9ButtonPressed(uint i){
+	if(i == BTN_ENTER || i == BTN_BACK) return;   // done / cancel handled by LVGL
+	if(i == BTN_R) return;                         // mode cycle happens on release
+
+	if(i == BTN_L){
+		t9Backspace();
+		return;
+	}
+
+	// BTN_LEFT / BTN_RIGHT (== BTN_UP / BTN_DOWN aliases) cycle candidates.
 	if(i == BTN_LEFT || i == BTN_RIGHT){
-		if(currentKey != -1 && capsMode == SINGLE){
-			setCapsMode(LOWER);
+		if(t9Candidates.empty()) return;
+		finishPunct();
+		int n = (int) t9Candidates.size();
+		if(i == BTN_RIGHT) t9MatchIndex = (t9MatchIndex + 1) % n;
+		else               t9MatchIndex = (t9MatchIndex + n - 1) % n;
+		updateTextarea();
+		return;
+	}
+
+	if(!keyMap.count(i)) return;
+	uint8_t key = keyMap.at(i);
+
+	if(key == 0){             // BTN_1 -> punctuation
+		t9CyclePunct();
+		return;
+	}
+	if(key == 9){             // BTN_0 -> confirm word + space
+		finishPunct();
+		t9CommitWord(true);
+		return;
+	}
+
+	// keys 1..8 map to T9 digits '2'..'9'.
+	finishPunct();
+	t9AppendDigit((char) ('1' + key));
+}
+
+// ── Button routing ──────────────────────────────────────────────────────────
+
+void TextEntry::buttonPressed(uint i){
+	if(inputMode == T9){
+		t9ButtonPressed(i);
+		return;
+	}
+
+	if(i == BTN_LEFT || i == BTN_RIGHT){
+		if(currentKey != -1 && inputMode == MULTI_SINGLE){
+			setInputMode(MULTI_LOWER);
 		}
 
 		keyTime = 0;
@@ -285,6 +527,11 @@ void TextEntry::buttonPressed(uint i){
 }
 
 void TextEntry::buttonHeldRepeat(uint i, uint repeatCount){
+	if(inputMode == T9){
+		if(i == BTN_L) t9Backspace();
+		return;
+	}
+
 	if(i == BTN_L){
 		backspace();
 	}else if(i == BTN_RIGHT){
@@ -302,9 +549,18 @@ void TextEntry::buttonHeld(uint i){
 
 	auto canned = cannedMessages.find(i);
     if(canned != cannedMessages.end()){
-        std::string text = getText();
+		if(inputMode == T9){
+			finishPunct();
+			if(!t9Digits.empty()) t9CommitWord(false);
+			if(!confirmedText.empty() && confirmedText.back() != ' '){
+				confirmedText += ' ';
+			}
+			confirmedText += canned->second;
+			updateTextarea();
+			return;
+		}
 
-		printf(text.c_str());
+        std::string text = getText();
         if(currentKey != -1){
             lv_textarea_del_char(entry);
             text = getText();
@@ -313,7 +569,7 @@ void TextEntry::buttonHeld(uint i){
         if(!text.empty() && text.back() != ' '){
             text += " ";
         }
-		
+
         text += canned->second;
         setText(text);
 
@@ -322,6 +578,8 @@ void TextEntry::buttonHeld(uint i){
         LoopManager::removeListener(this);
         return;
     }
+
+	if(inputMode == T9) return;   // no hold-to-last-char in T9
 
     if(!keyMap.count(i)){
         return;
@@ -344,7 +602,7 @@ void TextEntry::buttonHeld(uint i){
 }
 
 void TextEntry::buttonReleased(uint i){
-	if(i == BTN_LEFT || i == BTN_RIGHT){
+	if((i == BTN_LEFT || i == BTN_RIGHT) && inputMode != T9){
 		lv_async_call([](void* user_data){
 			auto obj = static_cast<lv_obj_t*>(user_data);
 			lv_event_send(obj, EV_ENTRY_LR, nullptr);
@@ -358,39 +616,60 @@ void TextEntry::buttonReleased(uint i){
 		return;
 	}
 
-	if(keyTime != 0){
+	if(inputMode != T9 && keyTime != 0){
 		LoopManager::removeListener(this);
 		keyTime = 0;
 		currentKey = -1;
 	}
 
-	setCapsMode((CapsMode) ((capsMode + 1) % CapsMode::COUNT));
+	setInputMode((InputMode) ((inputMode + 1) % InputMode::COUNT));
 }
 
 void TextEntry::loop(uint micros){
 	if(millis() - keyTime < 1000) return;
+
+	if(inputMode == T9){
+		finishPunct();
+		return;
+	}
 
 	keyTime = 0;
 	currentKey = -1;
 	lv_obj_set_style_anim_time(entry, 500, LV_PART_CURSOR | LV_STATE_FOCUSED);
 	LoopManager::removeListener(this);
 
-	if(capsMode == SINGLE){
-		setCapsMode(LOWER);
+	if(inputMode == MULTI_SINGLE){
+		setInputMode(MULTI_LOWER);
 	}
 }
 
-void TextEntry::setCapsMode(TextEntry::CapsMode mode){
-	capsMode = mode;
+void TextEntry::setInputMode(TextEntry::InputMode mode){
+	InputMode old = inputMode;
 
-	const char* CapsText[] = { "aa", "Aa", "AA" };
-	lv_label_set_text(capsText, CapsText[mode]);
-}
-
-void TextEntry::showCaps(bool show){
-	if(show){
-		lv_obj_clear_flag(capsText, LV_OBJ_FLAG_HIDDEN);
-	}else{
-		lv_obj_add_flag(capsText, LV_OBJ_FLAG_HIDDEN);
+	if(old == T9 && mode != T9){
+		// Leaving T9: bake the prediction into the textarea as plain editable text.
+		finishPunct();
+		t9CommitWord(false);
+		lv_textarea_set_accepted_chars(entry, charMap);
+		lv_textarea_set_max_length(entry, maxLength);
+		lv_textarea_set_text(entry, confirmedText.c_str());
+		lv_textarea_set_cursor_pos(entry, LV_TEXTAREA_CURSOR_LAST);
 	}
+
+	inputMode = mode;
+
+	if(mode == T9 && old != T9){
+		// Entering T9: adopt the current textarea text as the confirmed base.
+		confirmedText = lv_textarea_get_text(entry);
+		t9Digits.clear();
+		t9Candidates.clear();
+		t9MatchIndex = 0;
+		t9PunctActive = false;
+		lv_textarea_set_accepted_chars(entry, nullptr);
+		lv_textarea_set_max_length(entry, 0);
+		updateTextarea();
+	}
+
+	const char* names[] = { "T9", "aa", "Aa", "AA", "12" };
+	lv_label_set_text(capsText, names[mode]);
 }
