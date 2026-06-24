@@ -39,9 +39,6 @@ public:
 
 	void loop(uint micros) override;
 
-	static InputMode loadLastInputMode();
-	static void saveInputMode(InputMode mode);
-
 private:
 	void buttonPressed(uint i) override;
 	void buttonReleased(uint i) override;
@@ -77,6 +74,11 @@ private:
 		T9, MULTI_LOWER, MULTI_SINGLE, MULTI_UPPER, MULTI_NUMERIC, COUNT
 	} inputMode = T9;
 	void setInputMode(InputMode mode);
+
+	// Last-used input mode persists to SPIFFS so the user's preferred entry
+	// mode (T9 or a multi-tap caps level) is restored for every message.
+	static InputMode loadLastInputMode();
+	static void saveInputMode(InputMode mode);
 
 	// Quick T9<->aa toggle: the first BTN_R press from T9 jumps to "aa" (for a
 	// quick one-off word edit) and the next press returns straight to T9. This
