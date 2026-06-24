@@ -74,12 +74,13 @@ private:
 	} inputMode = T9;
 	void setInputMode(InputMode mode);
 
-	// Quick T9<->aa toggle: a single BTN_R press from T9 jumps to "aa" (for a
-	// quick word edit) and a single press back from "aa" returns straight to T9
-	// instead of continuing the full T9->aa->Aa->AA->12 cycle. Pressing BTN_R
-	// again quickly (within modeQuickToggleWindowMs) resumes the normal cycle.
-	uint32_t modeEnterTime = 0;
-	static const uint32_t modeQuickToggleWindowMs = 600;
+	// Quick T9<->aa toggle: the first BTN_R press from T9 jumps to "aa" (for a
+	// quick one-off word edit) and the next press returns straight to T9. This
+	// detour fires only ONCE per editing session; afterwards BTN_R cycles the
+	// deliberate caps modes T9 -> Aa -> AA -> 12 -> T9 (skipping "aa", which is
+	// still reached implicitly when "Aa" auto-lowercases after its first letter).
+	// Reset in start() so each new edit gets the detour once.
+	bool quickReturnUsed = false;
 
 	// ── T9 predictive state ────────────────────────────────────────────────
 	std::string confirmedText;             // committed text (no in-progress word)

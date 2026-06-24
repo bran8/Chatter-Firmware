@@ -95,9 +95,15 @@ std::vector<std::pair<std::string, uint16_t>> T9Dict::getMatches(
 	out.reserve(limit < 256 ? limit : 256);
 	descend(0, digits, 0, prefix, out, limit);
 
+	// Shortest words first, so candidates matching the typed digit count exactly
+	// lead the list; ties broken by frequency (weight) descending. Sorting by
+	// length *before* the resize ensures exact-length words survive truncation
+	// rather than being pushed out by high-frequency longer completions.
 	std::sort(out.begin(), out.end(),
 			  [](const std::pair<std::string, uint16_t>& a,
 				 const std::pair<std::string, uint16_t>& b){
+				  if(a.first.size() != b.first.size())
+					  return a.first.size() < b.first.size();
 				  return a.second > b.second;
 			  });
 

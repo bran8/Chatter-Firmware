@@ -8,6 +8,7 @@
 #include <Pins.hpp>
 #include <Loop/LoopManager.h>
 #include <unordered_set>
+#include <algorithm>
 #include <cstring>
 
 const char* TextEntry::characters[] = {
@@ -203,6 +204,7 @@ void TextEntry::start(){
 	Input::getInstance()->addListener(this);
 
 	btnRHeld = false;
+	quickReturnUsed = false;   // each editing session gets the T9->aa->T9 detour once
 
 	lv_obj_add_state(obj, LV_STATE_EDITED);
 	active = true;
@@ -357,6 +359,15 @@ std::vector<std::string> TextEntry::buildCandidates(const std::string& digits) c
 	for(const auto& p : dict){
 		if(seen.insert(p.first).second) out.push_back(p.first);
 	}
+
+	// Present shortest candidates first: a word matching the typed digit count
+	// exactly leads, then progressively longer completions reached via up/down.
+	// stable_sort keeps the within-length ordering (custom-before-dict, each by
+	// frequency) established above.
+	std::stable_sort(out.begin(), out.end(),
+					 [](const std::string& a, const std::string& b){
+						 return a.size() < b.size();
+					 });
 
 	printf("[T9 DEBUG]   buildCandidates done: %u merged, heapAfter=%u (delta=%d)\n",
 		   (unsigned) out.size(), (unsigned) ESP.getFreeHeap(),
@@ -664,21 +675,22 @@ void TextEntry::buttonReleased(uint i){
 		currentKey = -1;
 	}
 
-	uint32_t now = millis();
-
 	if(inputMode == T9){
-		// T9 -> aa: a quick detour for a one-off word edit.
-		setInputMode(MULTI_LOWER);
-		modeEnterTime = now;
-	}else if(inputMode == MULTI_LOWER && modeEnterTime != 0
-			 && (now - modeEnterTime) >= modeQuickToggleWindowMs){
-		// First press back out of "aa" after some time editing -> snap straight
-		// back to T9 instead of continuing through Aa/AA/12.
+		if(!quickReturnUsed){
+			// First BTN_R from T9 -> aa: a quick detour for a one-off word edit.
+			setInputMode(MULTI_LOWER);
+		}else{
+			// Detour already spent: enter the deliberate caps cycle at Aa,
+			// skipping the "aa" quick-edit mode.
+			setInputMode(MULTI_SINGLE);
+		}
+	}else if(inputMode == MULTI_LOWER && !quickReturnUsed){
+		// The one-time press back out of "aa" returns straight to T9 instead of
+		// continuing through Aa/AA/12. Latch it so it never happens again.
 		setInputMode(T9);
-		modeEnterTime = 0;
+		quickReturnUsed = true;
 	}else{
-		// Either continuing to press rapidly (user wants the full cycle), or
-		// already past "aa" -> behave like the normal mode cycle.
+		// Normal mode cycle, wrapping back to T9.
 		setInputMode((InputMode) ((inputMode + 1) % InputMode::COUNT));
 	}
 }

@@ -15,8 +15,10 @@
  * child whose letter belongs to the typed digit's letter set.
  *
  * Matching is PREDICTIVE (prefix-based): getMatches() returns every dictionary
- * word whose T9 encoding *starts with* the typed digits, ranked by frequency.
- * This drives the grey "predicted completion" UX. See the note in
+ * word whose T9 encoding *starts with* the typed digits, ordered shortest-first
+ * (so a word matching the typed digit count exactly leads, with longer
+ * completions reachable via the up/down keys) and then by frequency within a
+ * given length. This drives the grey "predicted completion" UX. See the note in
  * implementation_plan.md (item K) about the exact-length-vs-prefix decision.
  */
 class T9Dict {
@@ -34,9 +36,10 @@ public:
 	// also lazy-initialises, so an explicit call is optional but cheap.
 	static void init();
 
-	// Words whose T9 encoding starts with `digits`, sorted by weight descending,
-	// capped at `maxResults`. Empty when `digits` is not a valid prefix of any
-	// word (the caller uses this to drive the invalid-key beep).
+	// Words whose T9 encoding starts with `digits`, sorted by length ascending
+	// (exact-length matches first) and then weight descending, capped at
+	// `maxResults`. Empty when `digits` is not a valid prefix of any word (the
+	// caller uses this to drive the invalid-key beep).
 	static std::vector<std::pair<std::string, uint16_t>> getMatches(
 			const std::string& digits, size_t maxResults = 16);
 

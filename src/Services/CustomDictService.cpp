@@ -65,9 +65,14 @@ std::vector<std::pair<std::string, uint32_t>> CustomDictService::getMatches(
 		}
 	}
 
+	// Shortest words first (exact-length matches lead), ties broken by learned
+	// frequency descending. Matches the ordering used by T9Dict::getMatches so
+	// the merged candidate list stays length-sorted.
 	std::sort(out.begin(), out.end(),
 			  [](const std::pair<std::string, uint32_t>& a,
 				 const std::pair<std::string, uint32_t>& b){
+				  if(a.first.size() != b.first.size())
+					  return a.first.size() < b.first.size();
 				  return a.second > b.second;
 			  });
 
