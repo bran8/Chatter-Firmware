@@ -108,12 +108,18 @@ void BuzzerService::buttonPressed(uint i){
 	// Keypad clicks are gated by their own setting; the alert-cancel bookkeeping
 	// below must still run so any button press silences an incoming-message alert.
 	if(keypadSoundsEnabled){
+		// Playing the keypad note takes over the speaker, which already
+		// interrupts any ongoing alert -- do NOT call noTone() here or the
+		// keypad "music" would be cut off immediately.
 		Piezo.tone(noteMap.at(i), 25);
+	}else{
+		// Keypad sounds are off, so no note replaces the alert tone; silence
+		// the speaker explicitly to stop an in-progress incoming-message alert.
+		Piezo.noTone();
 	}
     alertActive = false;
     noteIndex = 0;
     noteTime = 0;
-    Piezo.noTone();
     LoopManager::removeListener(this);
 	//printf("Alert canceled, %d pressed\n", i);
 }
