@@ -8,6 +8,7 @@
 #include <Chatter.h>
 #include "../Services/SleepService.h"
 #include "../Storage/Storage.h"
+#include "../Services/MessageService.h"
 #include "../Modals/Prompt.h"
 #include <Audio/Piezo.h>
 #include "../Services/BuzzerService.h"
@@ -476,6 +477,59 @@ SettingsScreen::SettingsScreen() : LVScreen(){
 	lv_style_set_width(&style_knob, 10);
 	lv_obj_add_style(brightnessSlider, &style_knob, LV_PART_KNOB | LV_STATE_EDITED);
 
+	//sendQueue: shows how many broadcasts are still pending and lets the user
+	//abort all of them at once (clickable action item, mirrors factoryReset).
+	sendQueue = lv_obj_create(obj);
+	lv_obj_set_height(sendQueue, LV_SIZE_CONTENT);
+	lv_obj_set_width(sendQueue, lv_pct(100));
+	lv_obj_set_layout(sendQueue, LV_LAYOUT_FLEX);
+	lv_obj_set_flex_flow(sendQueue, LV_FLEX_FLOW_ROW);
+	lv_obj_set_flex_align(sendQueue, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+	lv_obj_set_style_pad_gap(sendQueue, 8, 0);
+	lv_obj_set_style_pad_all(sendQueue, 3, 0);
+	lv_obj_set_style_bg_opa(sendQueue, 0, 0);
+	lv_obj_add_style(sendQueue, &style_focused, selFocus);
+	lv_obj_add_style(sendQueue, &style_def, sel);
+	lv_obj_add_flag(sendQueue, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+
+	lv_obj_clear_flag(sendQueue, LV_OBJ_FLAG_CLICK_FOCUSABLE);
+	lv_obj_clear_flag(sendQueue, LV_OBJ_FLAG_CHECKABLE);
+	lv_obj_clear_flag(sendQueue, LV_OBJ_FLAG_SCROLLABLE);
+
+	sendQueueLabel = lv_label_create(sendQueue);
+	lv_obj_set_style_text_font(sendQueueLabel, &pixelbasic7, 0);
+	lv_obj_set_style_text_color(sendQueueLabel, lv_color_white(), 0);
+	lv_label_set_text(sendQueueLabel, "Sending queue: 0");
+
+	// Refresh the count whenever the row gains focus, so scrolling to it shows
+	// an up-to-date number as ACKs trickle in.
+	lv_obj_add_event_cb(sendQueue, [](lv_event_t* event){
+		static_cast<SettingsScreen*>(event->user_data)->updateQueueLabel();
+	}, LV_EVENT_FOCUSED, this);
+
+	// Click -> confirm -> abort all pending broadcasts.
+	lv_obj_add_event_cb(sendQueue, [](lv_event_t* event){
+		auto* screen = static_cast<SettingsScreen*>(event->user_data);
+		int n = Messages.pendingCount();
+		if(n <= 0) return;   // nothing queued, nothing to stop
+
+		char buf[48];
+		snprintf(buf, sizeof(buf), "Stop %d pending\nbroadcast(s)?", n);
+		auto prompt = new Prompt(screen, buf);
+		lv_obj_add_event_cb(prompt->getLvObj(), [](lv_event_t* e){
+			auto* screen = static_cast<SettingsScreen*>(e->user_data);
+			Messages.abortPending();
+			screen->updateQueueLabel();
+		}, EV_PROMPT_YES, screen);
+		prompt->start();
+	}, LV_EVENT_CLICKED, this);
+
+	lv_obj_add_event_cb(sendQueue, [](lv_event_t* event){
+		static_cast<SettingsScreen*>(event->user_data)->pop();
+	}, LV_EVENT_CANCEL, this);
+
+	lv_group_add_obj(inputGroup, sendQueue);
+
 	//factoryReset
 	factoryReset = lv_obj_create(obj);
 	lv_obj_set_height(factoryReset, LV_SIZE_CONTENT);
@@ -569,7 +623,18 @@ SettingsScreen::~SettingsScreen(){
 	lv_style_reset(&style_pressed);
 }
 
+void SettingsScreen::updateQueueLabel(){
+	int n = Messages.pendingCount();
+	if(n > 0){
+		lv_label_set_text_fmt(sendQueueLabel, "Sending queue: %d", n);
+	}else{
+		lv_label_set_text(sendQueueLabel, "Sending queue: empty");
+	}
+}
+
 void SettingsScreen::onStarting(){
+	updateQueueLabel();
+
 	if(Settings.get().sound){
 		lv_obj_add_state(soundSwitch, LV_STATE_CHECKED);
 	}

@@ -20,9 +20,13 @@ private:
 	lv_obj_t* sleepTime;
 	lv_obj_t* shutdownTime;
 	lv_obj_t* screenBrightness;
+	lv_obj_t* sendQueue;
 	lv_obj_t* factoryReset;
 	lv_obj_t* HWTest;
 	lv_obj_t* version;
+
+	lv_obj_t* sendQueueLabel;
+	void updateQueueLabel();   // refresh the "Sending queue: N" text from Messages
 
 	lv_obj_t* soundSwitch;
 	lv_obj_t* keypadSoundSwitch;

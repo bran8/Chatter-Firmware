@@ -9,6 +9,7 @@
 #include <string>
 #include <Loop/LoopListener.h>
 #include <unordered_map>
+#include <unordered_set>
 #include <Util/WithListeners.h>
 
 class MsgReceivedListener;
@@ -24,6 +25,14 @@ public:
 
 	int broadcastText(const std::string& text);
 	int broadcastPic(uint16_t index);
+
+	// Number of outgoing messages still being retried (i.e. not yet ACKed and not
+	// aborted). This is the "sending queue" depth shown in Settings.
+	int pendingCount();
+	// Stop retrying every message currently pending: snapshot their UIDs so the
+	// retry loop skips them. Messages are NOT deleted -- they remain in the convo
+	// as undelivered. Returns how many were aborted. New sends are unaffected.
+	int abortPending();
 
 	Message resend(UID_t convo, UID_t message);
 
@@ -60,6 +69,11 @@ private:
 	void retryPendingMessages();
 
     std::unordered_map<UID_t, Message> lastMessages;
+
+    // UIDs of outgoing messages the user aborted via Settings -> "Sending queue".
+    // The retry loop skips these. In-memory only: a reboot clears it, so aborted
+    // (still-undelivered) messages would resume retrying after a power cycle.
+    std::unordered_set<UID_t> aborted;
 
     bool unread = false;
     uint32_t retryTimer = 0;

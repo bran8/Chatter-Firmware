@@ -97,6 +97,41 @@ int MessageService::broadcastPic(uint16_t index){
 	return sent;
 }
 
+int MessageService::pendingCount(){
+	int count = 0;
+	for(UID_t convoUID : Storage.Convos.all()){
+		Convo convo = Storage.Convos.get(convoUID);
+		if(convo.uid == 0) continue;
+
+		for(UID_t msgUID : convo.messages){
+			Message msg = Storage.Messages.get(msgUID);
+			if(msg.uid == 0) continue;
+			if(!msg.outgoing) continue;
+			if(msg.received) continue;
+			if(aborted.count(msgUID)) continue;
+			count++;
+		}
+	}
+	return count;
+}
+
+int MessageService::abortPending(){
+	int count = 0;
+	for(UID_t convoUID : Storage.Convos.all()){
+		Convo convo = Storage.Convos.get(convoUID);
+		if(convo.uid == 0) continue;
+
+		for(UID_t msgUID : convo.messages){
+			Message msg = Storage.Messages.get(msgUID);
+			if(msg.uid == 0) continue;
+			if(!msg.outgoing) continue;
+			if(msg.received) continue;
+			if(aborted.insert(msgUID).second) count++;
+		}
+	}
+	return count;
+}
+
 Message MessageService::resend(UID_t convo, UID_t message){
 	if(!Storage.Convos.exists(convo)) return { };
 
@@ -139,6 +174,8 @@ bool MessageService::deleteMessage(UID_t convoUID, UID_t msgUID){
 	if(!Storage.Convos.update(convo)) return false;
 
 	if(!Storage.Messages.remove(msgUID)) return false;
+
+	aborted.erase(msgUID);   // keep the abort set from outliving its messages
 
 	if(last){
 		lastMessages.erase(convoUID);
@@ -390,6 +427,7 @@ void MessageService::retryPendingMessages(){
             if(msg.uid == 0) continue;
             if(!msg.outgoing) continue;
             if(msg.received) continue;
+            if(aborted.count(msgUID)) continue;   // user stopped this broadcast
 
             sendPacket(convo.uid, msg);
         }
