@@ -1,4 +1,3 @@
-
 # Chatter 2.0 Green
 
 This fork adds my custom tweaks for Chatter 2.0.  Agentic Engineering assisted, peer review welcome.
@@ -7,14 +6,14 @@ This fork adds my custom tweaks for Chatter 2.0.  Agentic Engineering assisted, 
 
 - **Broadcast to all friends** – send one message that goes to all your friends
 - *T9* - Basic version of T9 word entry using unrefined frequency wordlist 
-- **Retry until Ack** – all sends are retried until acknowledged by receiver
+- **Retry until Ack** – all sends are retried until acknowledged by receiver (Go to Settings to clear the sending queue to clear the airwaves)
 - **Incoming Annoyance** – incoming messages are important, play sound continuiously until silenced
 - **Canned responses** – Long Press to type a pre-canned message
 
 Quality of Life
+
 - Wrap around menus (sacrificing some animation)
 - Keep draft message
-
 
 Detailed Setup that worked for me: 
 
@@ -42,11 +41,9 @@ I get a conflict error with overlapping candidates; void Sprite::pushImage and v
 
 If you need to factory restore the device, login to https://code.circuitmess.com/ and click on Restore Firmware in the top-right corner. 
 
-
 # Chatter Firmware
 
 > The repository for the core firmware that comes preloaded on every Chatter.
-
 
 Put together and code two encrypted wireless communicators.
 
@@ -191,6 +188,7 @@ You can also restore your firmware here by logging in, clicking the "Restore Fir
 and following the on-screen instructions.
 
 ---
+
 Copyright © 2025 CircuitMess
 
 Licensed under [MIT License](https://opensource.org/licenses/MIT).
