@@ -39,6 +39,9 @@ public:
 
 	void loop(uint micros) override;
 
+	static InputMode loadLastInputMode();
+	static void saveInputMode(InputMode mode);
+
 private:
 	void buttonPressed(uint i) override;
 	void buttonReleased(uint i) override;

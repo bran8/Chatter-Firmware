@@ -11,6 +11,7 @@
 #include <unordered_set>
 #include <algorithm>
 #include <cstring>
+#include <SPIFFS.h>
 
 const char* TextEntry::characters[] = {
 		".,?!+-:()*1",
@@ -102,20 +103,33 @@ TextEntry::TextEntry(lv_obj_t* parent, const std::string& text, uint32_t maxLeng
 	lv_group_add_obj(inputGroup, entry);
 	lv_obj_clear_state(entry, LV_STATE_FOCUSED);
 
-	// Start in T9: the textarea becomes a render of confirmedText + prediction,
-	// so relax its length limit and seed the confirmed text with the initial value.
+	// Load the last used input mode or default to T9
 	T9Dict::init();
-	inputMode = T9;
+	InputMode savedMode = loadLastInputMode();
 	confirmedText = text;
-	// In T9 the textarea is a pure render of confirmedText + recolour markup.
-	// Clearing accepted_chars AND max_length makes lv_textarea_set_text take its
-	// direct-label path, so the "#808080 ...#" markup survives (otherwise it is
-	// re-added char-by-char and the '#' is filtered out). The real length limit
-	// is enforced on confirmedText in t9AppendDigit().
-	lv_textarea_set_accepted_chars(entry, nullptr);
-	lv_textarea_set_max_length(entry, 0);
-	lv_label_set_text(capsText, "T9");
-	updateTextarea();
+
+	if(savedMode == T9){
+		// Start in T9: the textarea becomes a render of confirmedText + prediction,
+		// so relax its length limit and seed the confirmed text with the initial value.
+		inputMode = T9;
+		// In T9 the textarea is a pure render of confirmedText + recolour markup.
+		// Clearing accepted_chars AND max_length makes lv_textarea_set_text take its
+		// direct-label path, so the "#808080 ...#" markup survives (otherwise it is
+		// re-added char-by-char and the '#' is filtered out). The real length limit
+		// is enforced on confirmedText in t9AppendDigit().
+		lv_textarea_set_accepted_chars(entry, nullptr);
+		lv_textarea_set_max_length(entry, 0);
+		lv_label_set_text(capsText, "T9");
+		updateTextarea();
+	}else{
+		// Start in saved multi-tap mode
+		inputMode = savedMode;
+		lv_textarea_set_accepted_chars(entry, charMap);
+		lv_textarea_set_max_length(entry, maxLength);
+		lv_textarea_set_text(entry, text.c_str());
+		const char* names[] = { "T9", "aa", "Aa", "AA", "12" };
+		lv_label_set_text(capsText, names[savedMode]);
+	}
 
 	for(auto pair : keyMap){
 		setButtonHoldTime(pair.first, 500);
@@ -755,6 +769,7 @@ void TextEntry::setInputMode(TextEntry::InputMode mode){
 	}
 
 	inputMode = mode;
+	saveInputMode(mode);  // Persist the mode for next session
 
 	if(mode == T9 && old != T9){
 		// Entering T9: adopt the current textarea text as the confirmed base.
@@ -774,4 +789,27 @@ void TextEntry::setInputMode(TextEntry::InputMode mode){
 
 	const char* names[] = { "T9", "aa", "Aa", "AA", "12" };
 	lv_label_set_text(capsText, names[mode]);
+}
+
+TextEntry::InputMode TextEntry::loadLastInputMode(){
+	const char* path = "/last_entry_mode.txt";
+	if(!SPIFFS.exists(path)) return T9;  // Default to T9 if no saved mode
+
+	File f = SPIFFS.open(path, "r");
+	if(!f) return T9;
+
+	int mode = f.parseInt();
+	f.close();
+
+	if(mode < 0 || mode >= InputMode::COUNT) return T9;
+	return static_cast<InputMode>(mode);
+}
+
+void TextEntry::saveInputMode(InputMode mode){
+	const char* path = "/last_entry_mode.txt";
+	File f = SPIFFS.open(path, "w");
+	if(!f) return;
+
+	f.print((int)mode);
+	f.close();
 }

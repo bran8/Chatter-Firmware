@@ -8,7 +8,7 @@ This fork adds my custom tweaks for Chatter 2.0.  Agentic Engineering assisted, 
 - *T9* - Basic version of T9 word entry using unrefined frequency wordlist 
 - **Retry until Ack** – all sends are retried until acknowledged by receiver (Go to Settings to clear the sending queue to clear the airwaves)
 - **Incoming Annoyance** – incoming messages are important, play sound continuiously until silenced
-- **Canned responses** – Long Press to type a pre-canned message
+- **Canned responses** – Long Press to type a pre-canned message (Go to Settings to customize)
 
 Quality of Life
 
@@ -40,6 +40,10 @@ Click the "Checkmark" to verify.  It will "Compiling sketch..." for a few minute
 I get a conflict error with overlapping candidates; void Sprite::pushImage and void lgfx::v1::LGFXBase::pushImage.  It does not stop me from Uploading the sketch to the device successfully.
 
 If you need to factory restore the device, login to https://code.circuitmess.com/ and click on Restore Firmware in the top-right corner. 
+
+## Serial Monitor
+
+Set Baud to 115200
 
 # Chatter Firmware
 

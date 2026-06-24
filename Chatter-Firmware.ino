@@ -133,6 +133,12 @@ void boot(){
 	//loadMock(true);
 	//printData();
 
+	// Set default sleep time to 5 minutes if it's at the library default (0)
+	if(Settings.get().sleepTime == 0) {
+		Settings.get().sleepTime = 2;  // Index 2 = 5 minutes
+		Settings.store();
+	}
+
 	Sleep.begin();
 
 

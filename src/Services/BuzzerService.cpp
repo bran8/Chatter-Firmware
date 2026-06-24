@@ -113,7 +113,7 @@ void BuzzerService::buttonPressed(uint i){
     alertActive = false;
     noteIndex = 0;
     noteTime = 0;
-    //Piezo.noTone();
+    Piezo.noTone();
     LoopManager::removeListener(this);
 	//printf("Alert canceled, %d pressed\n", i);
 }
