@@ -9,6 +9,7 @@
 #include "../Services/SleepService.h"
 #include "../Storage/Storage.h"
 #include "../Services/MessageService.h"
+#include "CannedScreen.h"
 #include "../Modals/Prompt.h"
 #include <Audio/Piezo.h>
 #include "../Services/BuzzerService.h"
@@ -529,6 +530,40 @@ SettingsScreen::SettingsScreen() : LVScreen(){
 	}, LV_EVENT_CANCEL, this);
 
 	lv_group_add_obj(inputGroup, sendQueue);
+
+	//cannedItem: opens the canned-message editor list (clickable, like HWTest).
+	cannedItem = lv_obj_create(obj);
+	lv_obj_set_height(cannedItem, LV_SIZE_CONTENT);
+	lv_obj_set_width(cannedItem, lv_pct(100));
+	lv_obj_set_layout(cannedItem, LV_LAYOUT_FLEX);
+	lv_obj_set_flex_flow(cannedItem, LV_FLEX_FLOW_ROW);
+	lv_obj_set_flex_align(cannedItem, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+	lv_obj_set_style_pad_gap(cannedItem, 8, 0);
+	lv_obj_set_style_pad_all(cannedItem, 3, 0);
+	lv_obj_set_style_bg_opa(cannedItem, 0, 0);
+	lv_obj_add_style(cannedItem, &style_focused, selFocus);
+	lv_obj_add_style(cannedItem, &style_def, sel);
+	lv_obj_add_flag(cannedItem, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+
+	lv_obj_clear_flag(cannedItem, LV_OBJ_FLAG_CLICK_FOCUSABLE);
+	lv_obj_clear_flag(cannedItem, LV_OBJ_FLAG_CHECKABLE);
+	lv_obj_clear_flag(cannedItem, LV_OBJ_FLAG_SCROLLABLE);
+
+	lv_obj_t* cannedLabel = lv_label_create(cannedItem);
+	lv_obj_set_style_text_font(cannedLabel, &pixelbasic7, 0);
+	lv_obj_set_style_text_color(cannedLabel, lv_color_white(), 0);
+	lv_label_set_text(cannedLabel, "Canned messages");
+
+	lv_obj_add_event_cb(cannedItem, [](lv_event_t* event){
+		auto* settings = static_cast<SettingsScreen*>(event->user_data);
+		settings->push(new CannedScreen());
+	}, LV_EVENT_CLICKED, this);
+
+	lv_obj_add_event_cb(cannedItem, [](lv_event_t* event){
+		static_cast<SettingsScreen*>(event->user_data)->pop();
+	}, LV_EVENT_CANCEL, this);
+
+	lv_group_add_obj(inputGroup, cannedItem);
 
 	//factoryReset
 	factoryReset = lv_obj_create(obj);

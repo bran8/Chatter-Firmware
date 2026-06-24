@@ -29,16 +29,7 @@ ConvoScreen::ConvoScreen(UID_t uid) : convo(uid){
     textEntry = new TextEntry(container, "", 60);
     textEntry->showCaps(true);
 
-    textEntry->setCannedMessage(BTN_1, "Stop for a bathroom break!");
-    textEntry->setCannedMessage(BTN_2, "Radio silence for 10 minutes");
-    textEntry->setCannedMessage(BTN_3, "On our way");
-    textEntry->setCannedMessage(BTN_4, "Call me when you can");
-    textEntry->setCannedMessage(BTN_5, "Arrived at destination!");
-    textEntry->setCannedMessage(BTN_6, "Be there in 5 minutes");
-    textEntry->setCannedMessage(BTN_7, "We need food!");
-    textEntry->setCannedMessage(BTN_8, "Traffic is bad");
-    textEntry->setCannedMessage(BTN_9, "Confirmed");
-	textEntry->setCannedMessage(BTN_0, "All is good!");
+    textEntry->loadCannedMessages();   // from persistent CannedService (editable in Settings)
 
 	// Restore any unfinished message left over from last time we were here.
 	{

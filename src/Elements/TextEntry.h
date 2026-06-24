@@ -29,6 +29,7 @@ public:
 
     void setCannedMessage(uint8_t button, const std::string& text);
     void clearCannedMessage(uint8_t button);
+    void loadCannedMessages();   // populate canned slots from the persistent CannedService
 
     void start();
 	void stop();

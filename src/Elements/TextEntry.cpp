@@ -3,6 +3,7 @@
 #include "../InputLVGL.h"
 #include "../Fonts/font.h"
 #include "../Services/CustomDictService.h"
+#include "../Services/CannedService.h"
 #include "../Services/BuzzerService.h"
 #include <Input/Input.h>
 #include <Pins.hpp>
@@ -198,6 +199,20 @@ void TextEntry::setCannedMessage(uint8_t button, const std::string& text){
 
 void TextEntry::clearCannedMessage(uint8_t button){
     cannedMessages.erase(button);
+}
+
+void TextEntry::loadCannedMessages(){
+    // Slot order matches CannedService: 0..8 -> keys 1..9, 9 -> key 0. Empty
+    // slots are simply not registered, leaving that button's long-press inert.
+    static const uint8_t CannedButtons[CannedService::Count] = {
+        BTN_1, BTN_2, BTN_3, BTN_4, BTN_5, BTN_6, BTN_7, BTN_8, BTN_9, BTN_0
+    };
+
+    cannedMessages.clear();
+    for(size_t i = 0; i < CannedService::Count; i++){
+        const std::string& text = Canned.get(i);
+        if(!text.empty()) cannedMessages[CannedButtons[i]] = text;
+    }
 }
 
 void TextEntry::start(){

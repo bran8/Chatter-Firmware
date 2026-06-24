@@ -1,29 +1,10 @@
-#include "BroadcastScreen.h"
+#include "CannedEditScreen.h"
 #include "../Fonts/font.h"
-#include "../Services/MessageService.h"
+#include "../Services/CannedService.h"
 #include <Input/Input.h>
 #include <Pins.hpp>
 
-/**
- * @file BroadcastScreen.cpp
- * @brief Specialized screen for one-to-many rapid communication.
- * 
- * OVERVIEW:
- * This screen is optimized for sending quick status updates to all friends list.  Canned messaged will be moved and centralized soon.
- * 
- * KEY FEATURES:
- * - One-to-Many: Uses Messages.broadcastText() to reach all peers at once.
- * - Canned Messages: Predefined phrases mapped to physical buttons for instant broadcasting.
- * - Rapid Input: Integration with TextEntry for custom messages.
- * 
- * WORKFLOW:
- * 1. User enters screen via "[>> Broadcast All]" menu.
- * 2. User either types a custom message OR presses a physical button (BTN_0-9) for a canned message.
- * 3. Pressing BTN_ENTER (or EV_ENTRY_DONE) sends the message and automatically pops the screen.
- * 4. BTN_BACK pops the screen if not currently typing.
- */
-
-BroadcastScreen::BroadcastScreen() : LVScreen(), apop(this){
+CannedEditScreen::CannedEditScreen(size_t slot) : LVScreen(), slot(slot){
 	lv_obj_set_style_pad_all(obj, 3, LV_PART_MAIN);
 	lv_obj_set_scrollbar_mode(obj, LV_SCROLLBAR_MODE_OFF);
 	lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
@@ -45,7 +26,7 @@ BroadcastScreen::BroadcastScreen() : LVScreen(), apop(this){
 	lv_obj_set_scrollbar_mode(header, LV_SCROLLBAR_MODE_OFF);
 
 	lv_obj_t* title = lv_label_create(header);
-	lv_label_set_text(title, ">> Broadcast All");
+	lv_label_set_text_fmt(title, "Edit key [%s]", CannedService::keyLabel(slot));
 	lv_obj_set_style_text_color(title, lv_color_white(), 0);
 	lv_obj_set_style_text_font(title, &pixelbasic7, 0);
 	lv_obj_set_align(title, LV_ALIGN_CENTER);
@@ -56,7 +37,7 @@ BroadcastScreen::BroadcastScreen() : LVScreen(), apop(this){
 	lv_obj_set_scrollbar_mode(spacer, LV_SCROLLBAR_MODE_OFF);
 
 	lv_obj_t* hint = lv_label_create(spacer);
-	lv_label_set_text(hint, "Type a message to\nsend to all friends");
+	lv_label_set_text(hint, "Edit the message.\nLeave blank to clear.");
 	lv_label_set_long_mode(hint, LV_LABEL_LONG_WRAP);
 	lv_obj_set_width(hint, lv_pct(100));
 	lv_obj_set_style_text_color(hint, lv_color_white(), 0);
@@ -64,10 +45,8 @@ BroadcastScreen::BroadcastScreen() : LVScreen(), apop(this){
 	lv_obj_set_style_text_align(hint, LV_TEXT_ALIGN_CENTER, 0);
 	lv_obj_set_align(hint, LV_ALIGN_CENTER);
 
-	textEntry = new TextEntry(container, "", 60);
+	textEntry = new TextEntry(container, Canned.get(slot), 60);
 	textEntry->showCaps(true);
-
-	textEntry->loadCannedMessages();   // from persistent CannedService (editable in Settings)
 
 	lv_obj_set_style_bg_opa(textEntry->getLvObj(), LV_OPA_100, LV_PART_MAIN);
 	lv_obj_set_style_bg_color(textEntry->getLvObj(), lv_color_white(), LV_PART_MAIN);
@@ -77,25 +56,25 @@ BroadcastScreen::BroadcastScreen() : LVScreen(), apop(this){
 	textEntry->setTextColor(lv_color_black());
 
 	lv_obj_add_event_cb(textEntry->getLvObj(), [](lv_event_t* e){
-		static_cast<BroadcastScreen*>(e->user_data)->textEntryConfirm();
+		static_cast<CannedEditScreen*>(e->user_data)->confirm();
 	}, EV_ENTRY_DONE, this);
 
 	lv_obj_add_event_cb(textEntry->getLvObj(), [](lv_event_t* e){
-		static_cast<BroadcastScreen*>(e->user_data)->textEntryCancel();
+		static_cast<CannedEditScreen*>(e->user_data)->cancel();
 	}, EV_ENTRY_CANCEL, this);
 }
 
-void BroadcastScreen::onStart(){
+void CannedEditScreen::onStart(){
 	Input::getInstance()->addListener(this);
 	textEntry->start();
 }
 
-void BroadcastScreen::onStop(){
+void CannedEditScreen::onStop(){
 	Input::getInstance()->removeListener(this);
 	textEntry->stop();
 }
 
-void BroadcastScreen::buttonPressed(uint i){
+void CannedEditScreen::buttonPressed(uint i){
 	if(i == BTN_ENTER || i == BTN_LEFT || i == BTN_RIGHT) return;
 
 	if(i != BTN_BACK){
@@ -106,34 +85,16 @@ void BroadcastScreen::buttonPressed(uint i){
 	}
 
 	if(textEntry->isActive()) return;
-
 	pop();
 }
 
-void BroadcastScreen::buttonHeld(uint i){
-}
-
-void BroadcastScreen::sendBroadcast(){
-	std::string text = textEntry->getText();
-	if(text.empty()) return;
-
-	textEntry->clear();
-
-	int sent = Messages.broadcastText(text);
-	printf("Broadcast sent to %d friends\n", sent);
-
+void CannedEditScreen::confirm(){
+	// TextEntry has already committed/stopped by the time EV_ENTRY_DONE fires, so
+	// getText() returns the final string. Empty text disables the slot.
+	Canned.set(slot, textEntry->getText());
 	pop();
 }
 
-void BroadcastScreen::textEntryConfirm(){
-	sendBroadcast();
-}
-
-void BroadcastScreen::textEntryCancel(){
-	textEntry->stop();
-
-	if(textEntry->getText().empty()){
-		pop();
-		return;
-	}
+void CannedEditScreen::cancel(){
+	pop();   // discard edits; TextEntry already stopped itself on cancel
 }
