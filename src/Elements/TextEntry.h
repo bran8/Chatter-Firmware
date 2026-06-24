@@ -100,6 +100,7 @@ private:
 	void updateTextarea();
 	std::string currentT9Word() const;     // selected candidate, auto-capitalised
 	bool sentenceStart() const;            // true when the next letter starts a sentence
+	void learnLastWord(const std::string& text); // persist the last multi-tap word to CustomDict
 	std::vector<std::string> buildCandidates(const std::string& digits) const;
 };
 

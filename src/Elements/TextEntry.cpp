@@ -479,6 +479,19 @@ std::string TextEntry::currentT9Word() const{
 	return w;
 }
 
+void TextEntry::learnLastWord(const std::string& text){
+	// Isolate the final whitespace-delimited token and hand it to CustomDict,
+	// which ignores anything under 2 letters or non-alphabetic. Learning just the
+	// last word (rather than the whole line) targets the word the user just
+	// finished in multi-tap and avoids re-counting earlier words on every toggle;
+	// the send path still learns the full message as a backstop.
+	size_t end = text.find_last_not_of(' ');
+	if(end == std::string::npos) return;
+	size_t start = text.find_last_of(' ', end);
+	start = (start == std::string::npos) ? 0 : start + 1;
+	CustomDict.learnText(text.substr(start, end - start + 1));
+}
+
 bool TextEntry::sentenceStart() const{
 	int i = (int) confirmedText.size() - 1;
 	while(i >= 0 && confirmedText[i] == ' ') i--;
@@ -731,6 +744,10 @@ void TextEntry::setInputMode(TextEntry::InputMode mode){
 	if(mode == T9 && old != T9){
 		// Entering T9: adopt the current textarea text as the confirmed base.
 		confirmedText = lv_textarea_get_text(entry);
+		// Learn the word just typed in multi-tap (e.g. switching to "aa" for a
+		// word T9 didn't know) so it is persisted AND becomes an immediate T9
+		// candidate -- before the message is ever sent.
+		learnLastWord(confirmedText);
 		t9Digits.clear();
 		t9Candidates.clear();
 		t9MatchIndex = 0;
