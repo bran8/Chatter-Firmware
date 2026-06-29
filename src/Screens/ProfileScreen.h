@@ -10,7 +10,6 @@
 #include "../Modals/ContextMenu.h"
 #include "../Modals/Prompt.h"
 
-class TextEntry;
 class EditableAvatar;
 class Avatar;
 class ColorBox;
@@ -22,7 +21,9 @@ public:
 	void onStart() override;
 	void onStop() override;
 private:
-	TextEntry* name;
+	// NOTE: the editable nickname field used a keypad TextEntry, which was
+	// removed on the headless-wifi branch (no LCD/keypad; the profile is edited
+	// from the web UI). The avatar/color display below is unaffected.
 	EditableAvatar* editableAvatar;
 	Avatar* avatar;
 	ColorBox* cbox;

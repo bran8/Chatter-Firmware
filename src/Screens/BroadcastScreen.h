@@ -3,9 +3,13 @@
 
 #include <Arduino.h>
 #include "../Interface/LVScreen.h"
-#include "../Elements/TextEntry.h"
+#include <Input/InputListener.h>
 #include "../AutoPop.h"
 
+// Headless-wifi branch: keypad text entry (TextEntry/T9) was removed -- no
+// LCD/keypad on this device, and broadcasting is done from the web UI. This
+// screen never runs here; it's an inert stub kept so its caller (InboxScreen)
+// still compiles.
 class BroadcastScreen : public LVScreen, private InputListener {
 public:
 	BroadcastScreen();
@@ -14,14 +18,7 @@ public:
 
 private:
 	void buttonPressed(uint i) override;
-	void buttonHeld(uint i) override;
 
-	void textEntryConfirm();
-	void textEntryCancel();
-
-	void sendBroadcast();
-
-	TextEntry* textEntry;
 	AutoPop apop;
 };
 

@@ -4,13 +4,13 @@
 #include <Arduino.h>
 #include <cstddef>
 #include "../Interface/LVScreen.h"
-#include "../Elements/TextEntry.h"
 #include <Input/InputListener.h>
 
 /**
- * Single-slot editor for a canned message. Opens a full T9/multi-tap TextEntry
- * pre-filled with the slot's current text. Confirm writes it back to
- * CannedService (empty text disables that button); cancel leaves it untouched.
+ * Single-slot editor for a canned message. NOTE: on the headless-wifi branch
+ * keypad text entry (TextEntry/T9) was removed -- there's no LCD/keypad, and
+ * canned messages are edited from the web UI. This screen never runs here;
+ * it's an inert stub kept so its caller (CannedScreen) still compiles.
  */
 class CannedEditScreen : public LVScreen, private InputListener {
 public:
@@ -22,11 +22,7 @@ public:
 private:
 	void buttonPressed(uint i) override;
 
-	void confirm();
-	void cancel();
-
 	size_t slot;
-	TextEntry* textEntry;
 };
 
 #endif //CHATTER_FIRMWARE_CANNEDEDITSCREEN_H

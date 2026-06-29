@@ -5,7 +5,6 @@
 #include "../Fonts/font.h"
 #include <Pins.hpp>
 #include <Input/Input.h>
-#include "../Elements/TextEntry.h"
 #include "../Storage/Storage.h"
 #include "../Modals/ContextMenu.h"
 #include "../Services/MessageService.h"
@@ -73,40 +72,15 @@ void ProfileScreen::buildHeader(){
 	lv_obj_t* label = lv_label_create(header);
 	lv_obj_add_style(label, &textStyle, 0);
 	lv_label_set_text(label, "Profile");
-	name = new TextEntry(header, profile.nickname, 20);
-	name->setPlaceholder("Name");
-	name->setTextColor(lv_color_hex(0xf4b41b));
-	lv_obj_set_style_text_font(name->getLvObj(), &pixelbasic7, 0);
-	if(editable){
-		lv_group_add_obj(inputGroup, name->getLvObj());
-	}
-	lv_obj_set_flex_grow(name->getLvObj(), 1);
-	lv_obj_set_style_border_width(name->getLvObj(), 1, 0);
-	lv_obj_set_style_border_color(name->getLvObj(), lv_color_hsv_to_rgb(0, 0, 100), 0);
-	lv_obj_set_style_border_opa(name->getLvObj(), 0, 0);
-	lv_obj_set_style_pad_all(name->getLvObj(), 1, 0);
-	lv_obj_set_style_border_width(name->getLvObj(), 1, LV_STATE_FOCUSED);
-	lv_obj_set_style_border_color(name->getLvObj(), lv_color_hsv_to_rgb(0, 0, 100), LV_STATE_FOCUSED);
-	lv_obj_set_style_border_opa(name->getLvObj(), LV_OPA_100, LV_STATE_FOCUSED);
-	lv_obj_set_style_bg_opa(name->getLvObj(), LV_OPA_100, LV_STATE_EDITED | LV_PART_MAIN);
 
-	if(editable){
-		lv_obj_add_event_cb(name->getLvObj(), [](lv_event_t* event){
-			lv_group_focus_freeze((lv_group_t*)(lv_obj_get_group(lv_event_get_target(event))), false);
-		}, EV_ENTRY_DONE, nullptr);
+	// The editable nickname (a keypad TextEntry) was removed on this branch;
+	// show the name as a static label instead. Editing happens via the web UI.
+	lv_obj_t* nameLabel = lv_label_create(header);
+	lv_obj_add_style(nameLabel, &textStyle, 0);
+	lv_obj_set_style_text_color(nameLabel, lv_color_hex(0xf4b41b), 0);
+	lv_label_set_text(nameLabel, profile.nickname);
+	lv_obj_set_flex_grow(nameLabel, 1);
 
-		lv_obj_add_event_cb(name->getLvObj(), [](lv_event_t* event){
-			TextEntry* textEntry = static_cast<ProfileScreen*>(lv_event_get_user_data(event))->name;
-			if(!textEntry->isActive()){
-				textEntry->start();
-				lv_group_focus_freeze((lv_group_t*)(lv_obj_get_group(textEntry->getLvObj())), true);
-			}
-		}, LV_EVENT_PRESSED, this);
-
-		lv_obj_add_event_cb(name->getLvObj(), [](lv_event_t* event){
-			lv_group_focus_freeze((lv_group_t*)(lv_obj_get_group(lv_event_get_target(event))), false);
-		}, EV_ENTRY_CANCEL, nullptr);
-	}
 	lv_obj_set_height(header, LV_SIZE_CONTENT);
 
 }
@@ -201,7 +175,8 @@ void ProfileScreen::onStart(){
 void ProfileScreen::onStop(){
 	Input::getInstance()->removeListener(this);
 	if(editable){
-		strncpy(profile.nickname, name->getText().c_str(), 21);
+		// nickname is no longer editable on this branch (TextEntry removed); keep
+		// the existing name and just persist the avatar/colour selections.
 		profile.avatar = editableAvatar->getIndex();
 		profile.hue = cbox->getHue();
 		Profiles.setMyProfile(profile);
@@ -211,7 +186,7 @@ void ProfileScreen::onStop(){
 }
 
 void ProfileScreen::buttonPressed(uint i){
-	if((!prompt || !prompt->isActive()) && (!menu || !menu->isActive()) && i == BTN_BACK && (!name || !name->isActive()) && ((editable && !lv_group_get_editing(inputGroup)) || !editable)){
+	if((!prompt || !prompt->isActive()) && (!menu || !menu->isActive()) && i == BTN_BACK && ((editable && !lv_group_get_editing(inputGroup)) || !editable)){
 		pop();
 	}
 }
@@ -220,7 +195,6 @@ void ProfileScreen::profileChanged(const Friend &fren){
 	if(editable || fren.uid != frend.uid) return;
 
 	avatar->changeImage(fren.profile.avatar);
-	name->setText(fren.profile.nickname);
 	cbox->setColor(fren.profile.hue);
 	lv_obj_invalidate(obj);
 }
