@@ -4,7 +4,6 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WebServer.h>
-#include <DNSServer.h>
 #include <Loop/LoopListener.h>
 #include "Pair/PairService.h"
 
@@ -24,16 +23,14 @@ public:
 
 private:
 	WebServer server{80};
-	// This AP has no internet uplink, which makes phone OSes (Android and iOS
-	// both) treat it as broken: they probe a known URL to check for real
-	// internet, the probe fails, and they either nag the user to confirm
-	// "stay connected?" or silently stop routing app traffic over this Wi-Fi --
-	// which looks exactly like "can't get back to the homepage" after a brief
-	// disconnect/reconnect. Resolving every hostname to our own IP (below) lets
-	// those probe requests land on handleCaptivePortal() instead of failing,
-	// so the OS recognizes this as a normal captive-portal network and keeps
-	// the connection usable.
-	DNSServer dnsServer;
+	// NOTE: this AP has no internet uplink. We deliberately do NOT run a DNS
+	// catch-all / captive-portal redirect here. Doing so pointed every
+	// connected device's background HTTP traffic (OS connectivity probes, app
+	// telemetry, prefetches) at our port 80, and the ESP32 WebServer is
+	// single-client with only a handful of TCP sockets -- a second device's
+	// connection burst overwhelmed it and the page went unreachable. Without
+	// the catch-all the AP shows as "no internet" (you open http://192.168.4.1
+	// manually), but multiple browsers stay reliable.
 	PairService* pairService = nullptr;
 	bool pairResultReady = false;
 	bool pairResultSuccess = false;
@@ -59,10 +56,18 @@ private:
 	void handlePairStatus();
 	void handlePairCancel();
 	void handleNotFound();
-	void handleCaptivePortal();   // OS internet-check probes -> the portal page
-	void redirectToPortal();      // 302 to the absolute gateway URL
 
 	static void onPairDone(bool success, void* ctx);
+
+	// --- Verbose console diagnostics --------------------------------------
+	// trace() logs every HTTP request; logStats() prints a 5s health line with
+	// heap/request-rate alerts. Heap + request-rate stand in for the raw socket
+	// count the Arduino API doesn't expose. Gated by VerboseLog in the .cpp.
+	void trace();                          // per-request serial log
+	void logStats();                       // periodic health/load heartbeat
+	uint32_t requestCount = 0;             // total HTTP requests served
+	uint32_t lastStatRequestCount = 0;     // requestCount at last logStats()
+	uint32_t statsLogTimer = 0;            // micros since last heartbeat
 
 	static String jsonEscape(const String& s);
 	static String uidToHex(UID_t uid);

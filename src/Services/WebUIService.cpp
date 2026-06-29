@@ -34,6 +34,10 @@ static const uint8_t BattClearMargin = 5;   // must recover this far above to re
 // holding the rail up (USB connected); below it we're running on the pack.
 static const uint16_t UsbPresentMv = 4500;
 
+// Verbose serial logging: per-request traces + a 5s health/load heartbeat on
+// the Serial Monitor (115200). Flip to false to silence it for production.
+static const bool VerboseLog = true;
+
 // Change this before flashing -- WPA2 requires at least 8 characters.
 static const char* AP_PASSWORD = "chatterwifi";
 
@@ -107,21 +111,43 @@ a{color:#8cf}
 
 <script>
 let currentConvo = null;
-let pairTimer = null;
+let pairTimer = null;        // /api/pair/discovered scan poll (2s)
+let pairStatusTimer = null;  // /api/pair/status result poll (1s)
+let pairing = false;         // a pair-confirm is in progress (greys the buttons, blocks re-taps)
 let selectedAvatar = 0;
+
+// In-flight guards: a periodic poll skips its tick if its own previous request
+// hasn't returned yet, so a briefly-slow (single-client) server can't let
+// requests pile up and overwhelm the WebUI.
+let statusBusy = false, pairBusy = false, pairStatusBusy = false;
 
 function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+// Stop all pairing polls. Both timers are single-instance and cleared here on
+// every navigation, so they can never leak/stack and hammer the device (a
+// leaked status poll was firing many /api/pair/status hits per second).
+function stopPairPolling(){
+  if(pairTimer){ clearInterval(pairTimer); pairTimer = null; }
+  if(pairStatusTimer){ clearInterval(pairStatusTimer); pairStatusTimer = null; }
+  pairing = false;
+  // Clear in-flight guards too, so a request that was still pending when we
+  // tore down can't leave a flag stuck-true and block the next pairing session.
+  pairBusy = false;
+  pairStatusBusy = false;
+}
+
 function show(view){
+  // Any view switch stops pairing polls so a leftover poll can't keep hitting
+  // the device after you navigate away (showPair restarts them right after).
+  stopPairPolling();
   ['friendsView','convoView','pairView','profileView'].forEach(v=>
     document.getElementById(v).classList.toggle('hidden', v!==view));
 }
 
 function showFriends(){
   show('friendsView');
-  if(pairTimer){ clearInterval(pairTimer); pairTimer=null; }
   loadFriends();
 }
 
@@ -153,6 +179,8 @@ function loadFriends(){
 }
 
 function refreshStatus(){
+  if(statusBusy) return;          // previous status request still in flight
+  statusBusy = true;
   fetch('/api/status').then(r=>r.json()).then(s=>{
     const mins = Math.floor(s.uptime/60);
     document.getElementById('status').innerText =
@@ -166,7 +194,7 @@ function refreshStatus(){
     }else{
       banner.classList.add('hidden');
     }
-  }).catch(()=>{});
+  }).catch(()=>{}).finally(()=>{ statusBusy = false; });
 }
 
 function silence(){
@@ -256,7 +284,7 @@ function broadcast(){
 }
 
 function showPair(){
-  show('pairView');
+  show('pairView');   // stops any leftover pair polls (see show())
   fetch('/api/pair/start', {method:'POST'}).then(()=>{
     refreshPair();
     pairTimer = setInterval(refreshPair, 2000);
@@ -264,32 +292,47 @@ function showPair(){
 }
 
 function refreshPair(){
+  if(pairing || pairBusy) return;   // not while confirming, and no overlapping scans
+  pairBusy = true;
   fetch('/api/pair/discovered').then(r=>r.json()).then(list=>{
+    if(pairing) return;             // a pair was confirmed while this was in flight
     const div = document.getElementById('pairList');
     div.innerHTML = '<p>Scanning for nearby Chatters...</p>';
     list.forEach(p=>{
       const el = document.createElement('div');
       el.className = 'friend';
       el.innerHTML = '<span>'+escapeHtml(p.nickname)+'</span><button>Pair</button>';
-      el.querySelector('button').onclick = ()=>confirmPair(p.index);
+      el.querySelector('button').onclick = (e)=>confirmPair(p.index, e.target);
       div.appendChild(el);
     });
-  });
+  }).catch(()=>{}).finally(()=>{ pairBusy = false; });
 }
 
-function confirmPair(index){
+function confirmPair(index, btn){
+  if(pairing) return;               // already pairing -- ignore further taps
+  pairing = true;
+
+  // Grey out every Pair button so none can be tapped again while we wait.
+  document.querySelectorAll('#pairList button').forEach(b=>{ b.disabled = true; });
+  if(btn){ btn.textContent = 'Pairing...'; }
+
   fetch('/api/pair/confirm', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
     body:'index='+index}).then(()=>{
-      const check = setInterval(()=>{
+      // Stop scanning while we wait, and ensure only one status poll runs.
+      if(pairTimer){ clearInterval(pairTimer); pairTimer = null; }
+      if(pairStatusTimer){ clearInterval(pairStatusTimer); pairStatusTimer = null; }
+      pairStatusTimer = setInterval(()=>{
+        if(pairStatusBusy) return;  // previous status request still in flight
+        pairStatusBusy = true;
         fetch('/api/pair/status').then(r=>r.json()).then(s=>{
           if(s.done){
-            clearInterval(check);
+            stopPairPolling();
             alert(s.success ? 'Paired!' : 'Pairing failed');
             showFriends();
           }
-        });
+        }).catch(()=>{}).finally(()=>{ pairStatusBusy = false; });
       }, 1000);
-    });
+    }).catch(()=>{ pairing = false; });  // confirm failed: unstick UI; scan re-renders buttons
 }
 
 showFriends();
@@ -307,44 +350,29 @@ void WebUIService::begin(){
 	WiFi.mode(WIFI_AP);
 	WiFi.softAP(ssid, AP_PASSWORD);
 
-	// Resolve every hostname to ourselves so phone-OS internet-check probes
-	// (which would otherwise fail against this internet-less AP) land on
-	// handleCaptivePortal() below instead. See the dnsServer comment in the
-	// header for why this matters.
-	dnsServer.start(53, "*", WiFi.softAPIP());
-
-	server.on("/", HTTP_GET, [this](){ handleRoot(); });
-	server.on("/api/friends", HTTP_GET, [this](){ handleFriends(); });
-	server.on("/api/convos", HTTP_GET, [this](){ handleConvos(); });
-	server.on("/api/convo", HTTP_GET, [this](){ handleConvo(); });
-	server.on("/api/messages", HTTP_POST, [this](){ handleSendMessage(); });
-	server.on("/api/broadcast", HTTP_POST, [this](){ handleBroadcast(); });
-	server.on("/api/read", HTTP_POST, [this](){ handleMarkRead(); });
-	server.on("/api/pending", HTTP_GET, [this](){ handlePending(); });
-	server.on("/api/status", HTTP_GET, [this](){ handleStatus(); });
-	server.on("/api/profile", HTTP_GET, [this](){ handleGetProfile(); });
-	server.on("/api/profile", HTTP_POST, [this](){ handleSetProfile(); });
-	server.on("/api/avatar", HTTP_GET, [this](){ handleAvatar(); });
-	server.on("/api/silence", HTTP_POST, [this](){ handleSilence(); });
-	server.on("/api/friends/delete", HTTP_POST, [this](){ handleDeleteFriend(); });
-	server.on("/api/messages/delete", HTTP_POST, [this](){ handleDeleteMessage(); });
-	server.on("/api/pair/start", HTTP_POST, [this](){ handlePairStart(); });
-	server.on("/api/pair/discovered", HTTP_GET, [this](){ handlePairDiscovered(); });
-	server.on("/api/pair/confirm", HTTP_POST, [this](){ handlePairConfirm(); });
-	server.on("/api/pair/status", HTTP_GET, [this](){ handlePairStatus(); });
-	server.on("/api/pair/cancel", HTTP_POST, [this](){ handlePairCancel(); });
-
-	// Known OS internet-connectivity-check paths -- redirect them to "/" so
-	// the resulting "sign in to network" prompt (Android) or captive-portal
-	// popup (iOS/macOS) opens straight into the Chatter UI.
-	server.on("/generate_204", HTTP_GET, [this](){ handleCaptivePortal(); });        // Android
-	server.on("/gen_204", HTTP_GET, [this](){ handleCaptivePortal(); });             // Android (older)
-	server.on("/hotspot-detect.html", HTTP_GET, [this](){ handleCaptivePortal(); }); // iOS/macOS
-	server.on("/library/test/success.html", HTTP_GET, [this](){ handleCaptivePortal(); }); // iOS/macOS (older)
-	server.on("/ncsi.txt", HTTP_GET, [this](){ handleCaptivePortal(); });            // Windows
-	server.on("/connecttest.txt", HTTP_GET, [this](){ handleCaptivePortal(); });     // Windows
-
-	server.onNotFound([this](){ handleNotFound(); });
+	// trace() (verbose console log of every request) runs first in each lambda,
+	// so all routes get traced from this one place without touching the handlers.
+	server.on("/", HTTP_GET, [this](){ trace(); handleRoot(); });
+	server.on("/api/friends", HTTP_GET, [this](){ trace(); handleFriends(); });
+	server.on("/api/convos", HTTP_GET, [this](){ trace(); handleConvos(); });
+	server.on("/api/convo", HTTP_GET, [this](){ trace(); handleConvo(); });
+	server.on("/api/messages", HTTP_POST, [this](){ trace(); handleSendMessage(); });
+	server.on("/api/broadcast", HTTP_POST, [this](){ trace(); handleBroadcast(); });
+	server.on("/api/read", HTTP_POST, [this](){ trace(); handleMarkRead(); });
+	server.on("/api/pending", HTTP_GET, [this](){ trace(); handlePending(); });
+	server.on("/api/status", HTTP_GET, [this](){ trace(); handleStatus(); });
+	server.on("/api/profile", HTTP_GET, [this](){ trace(); handleGetProfile(); });
+	server.on("/api/profile", HTTP_POST, [this](){ trace(); handleSetProfile(); });
+	server.on("/api/avatar", HTTP_GET, [this](){ trace(); handleAvatar(); });
+	server.on("/api/silence", HTTP_POST, [this](){ trace(); handleSilence(); });
+	server.on("/api/friends/delete", HTTP_POST, [this](){ trace(); handleDeleteFriend(); });
+	server.on("/api/messages/delete", HTTP_POST, [this](){ trace(); handleDeleteMessage(); });
+	server.on("/api/pair/start", HTTP_POST, [this](){ trace(); handlePairStart(); });
+	server.on("/api/pair/discovered", HTTP_GET, [this](){ trace(); handlePairDiscovered(); });
+	server.on("/api/pair/confirm", HTTP_POST, [this](){ trace(); handlePairConfirm(); });
+	server.on("/api/pair/status", HTTP_GET, [this](){ trace(); handlePairStatus(); });
+	server.on("/api/pair/cancel", HTTP_POST, [this](){ trace(); handlePairCancel(); });
+	server.onNotFound([this](){ trace(); handleNotFound(); });
 
 	server.begin();
 	LoopManager::addListener(this);
@@ -355,12 +383,12 @@ void WebUIService::begin(){
 	// Audible "I booted and the AP is up" -- the only boot indicator with no LCD.
 	playCue(BootCue, sizeof(BootCue) / sizeof(BootCue[0]));
 
-	printf("WebUI: AP \"%s\" started, connect and browse http://192.168.4.1/\n", ssid);
+	printf("WebUI: AP \"%s\" started, browse http://%s/  (free heap %u)\n",
+		ssid, WiFi.softAPIP().toString().c_str(), ESP.getFreeHeap());
 }
 
 void WebUIService::loop(uint micros){
 	server.handleClient();
-	dnsServer.processNextRequest();
 
 	// Check the AP client count a couple of times a second -- no need to query
 	// the WiFi driver on every loop tick.
@@ -375,6 +403,14 @@ void WebUIService::loop(uint micros){
 	if(batteryPollTimer >= 5000000){
 		batteryPollTimer = 0;
 		pollBattery();
+	}
+
+	// Verbose health/load heartbeat (~5s) -- heap + request rate are our proxies
+	// for socket pressure since the Arduino API exposes no raw socket count.
+	statsLogTimer += micros;
+	if(statsLogTimer >= 5000000){
+		statsLogTimer = 0;
+		logStats();
 	}
 
 	updateCue(micros);
@@ -435,10 +471,56 @@ void WebUIService::pollStations(){
 	uint8_t now = WiFi.softAPgetStationNum();
 	if(now > lastStationNum){
 		playCue(ConnectCue, sizeof(ConnectCue) / sizeof(ConnectCue[0]));
+		if(VerboseLog) Serial.printf("[WebUI] + client joined: %u station(s) connected, free heap %u\n",
+			now, ESP.getFreeHeap());
 	}else if(now < lastStationNum){
 		playCue(DisconnectCue, sizeof(DisconnectCue) / sizeof(DisconnectCue[0]));
+		if(VerboseLog) Serial.printf("[WebUI] - client left: %u station(s) connected, free heap %u\n",
+			now, ESP.getFreeHeap());
 	}
 	lastStationNum = now;
+}
+
+// Per-request verbose trace -- runs at the top of every route lambda (see
+// begin()). Logs method, path, client IP, a running request counter, and free
+// heap so a connection storm or heap leak is visible request-by-request.
+void WebUIService::trace(){
+	requestCount++;
+	if(!VerboseLog) return;
+	Serial.printf("[WebUI] #%lu %s %s  from %s  heap=%u sta=%u\n",
+		(unsigned long) requestCount,
+		server.method() == HTTP_GET ? "GET" : "POST",
+		server.uri().c_str(),
+		server.client().remoteIP().toString().c_str(),
+		ESP.getFreeHeap(),
+		WiFi.softAPgetStationNum());
+}
+
+// Periodic health line + alerts. The ESP32/Arduino stack exposes no raw lwIP
+// socket count, so we surface the next-best signals: free heap (drops as
+// sockets/buffers fill), request rate (spikes during a connection storm), and
+// station count. Two heuristic alerts flag the conditions that precede the
+// "page unreachable" wedge.
+void WebUIService::logStats(){
+	if(!VerboseLog) return;
+	uint32_t heap = ESP.getFreeHeap();
+	uint32_t minHeap = ESP.getMinFreeHeap();
+	uint32_t reqDelta = requestCount - lastStatRequestCount;
+	lastStatRequestCount = requestCount;
+
+	Serial.printf("[WebUI] stats: sta=%u heap=%u minHeap=%u req/5s=%lu total=%lu pending=%d up=%lus\n",
+		WiFi.softAPgetStationNum(), heap, minHeap,
+		(unsigned long) reqDelta, (unsigned long) requestCount,
+		Messages.pendingCount(), (unsigned long) (millis() / 1000));
+
+	if(reqDelta > 30){
+		Serial.printf("[WebUI] !! high request rate (%lu in 5s) -- possible connection storm filling sockets\n",
+			(unsigned long) reqDelta);
+	}
+	if(heap < 25000){
+		Serial.printf("[WebUI] !! low free heap (%u) -- TCP sockets/buffers may be exhausting; new connections can fail\n",
+			heap);
+	}
 }
 
 void WebUIService::playCue(const CueNote* notes, uint8_t len){
@@ -715,37 +797,8 @@ void WebUIService::handleAvatar(){
 	server.send_P(200, "image/png", (PGM_P) AvatarPng[idx], AvatarPngLen[idx]);
 }
 
-// With the DNS catch-all resolving every host to us, anything we don't have an
-// explicit route for is almost certainly an OS captive-portal probe or a
-// browser poking at a random host -- send it all to the portal page so the
-// network gets recognized as a captive portal instead of "no internet".
 void WebUIService::handleNotFound(){
-	redirectToPortal();
-}
-
-// Hit by the OS's own internet-connectivity probe (Android/iOS/Windows all
-// have one), which dnsServer routes here by resolving the probe's hostname to
-// us. Redirecting -- rather than answering the probe's expected "everything's
-// fine" body -- is what makes the OS treat this as a captive portal and pop
-// its sign-in UI onto our page, instead of deciding there's "no internet" and
-// deprioritizing/dropping the connection.
-void WebUIService::handleCaptivePortal(){
-	redirectToPortal();
-}
-
-// Redirect to the ABSOLUTE gateway URL (http://192.168.4.1/), not a relative
-// "/". Windows' captive-portal assistant resolves the Location against the
-// probe's hostname (www.msftconnecttest.com), so a relative path can send it
-// back to a Microsoft host instead of to us; the absolute IP URL pins it to
-// the device. (Note: we only serve HTTP/80 -- if the OS insists on HTTPS the
-// auto-popup can still fail, in which case browsing to http://192.168.4.1
-// by hand always works.)
-void WebUIService::redirectToPortal(){
-	String url = "http://" + WiFi.softAPIP().toString() + "/";
-	server.sendHeader("Location", url, true);
-	server.send(302, "text/html",
-		"<!DOCTYPE html><meta http-equiv=refresh content=\"0;url=" + url + "\">"
-		"<a href=\"" + url + "\">Open Chatter</a>");
+	server.send(404, "application/json", "{\"error\":\"not found\"}");
 }
 
 void WebUIService::onPairDone(bool success, void* ctx){
