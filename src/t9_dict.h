@@ -2,7 +2,7 @@
 #pragma once
 #include <stdint.h>
 
-#define T9_NODE_COUNT  20503u
+#define T9_NODE_COUNT  20507u
 #define T9_HEADER_SIZE 4u
 #define T9_NODE_SIZE   8u
 
