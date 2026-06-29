@@ -100,6 +100,14 @@ void BuzzerService::setNoBuzzUID(UID_t noBuzzUid){
 	noBuzzUID = noBuzzUid;
 }
 
+void BuzzerService::silenceAlert(){
+	Piezo.noTone();
+	alertActive = false;
+	noteIndex = 0;
+	noteTime = 0;
+	LoopManager::removeListener(this);
+}
+
 void BuzzerService::buttonPressed(uint i){
     extern bool gameStarted;
     if(gameStarted) return;

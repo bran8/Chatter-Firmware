@@ -53,6 +53,7 @@ non-blocking melodies for the events that matter:
 | Boot / AP is up | C5–E5–G5 **rising** chime — "I booted, Wi-Fi is live" |
 | A phone connects to the AP | C5–G5 **rising** |
 | A phone disconnects | G5–C5 **falling** |
+| Battery dropping on backup power | E5–C5–G4 **falling** — check USB power |
 
 Cues honor the global sound setting (silent if sound is turned off). The boot chime is
 your confirmation that the firmware came up and the Access Point is broadcasting,
@@ -83,6 +84,22 @@ unchanged.)
    header shows live **battery %, pack voltage, pending sends, connected clients, and
    uptime** (polled every 10 s). Watching the voltage trend is a handy way to gauge how
    fast Wi-Fi drains the pack when running on battery backup.
+
+### Web UI features
+
+- **Friends & conversations** — avatar thumbnail, name, and last message per friend;
+  tap to open the thread, compose and send.
+- **My profile** (`me` link) — edit your **name**, pick from the 15 built-in **avatars**
+  (rendered live in the browser — the firmware transcodes the device's LVGL image
+  assets to BMP on the fly), and set your color hue. Saved back to the device profile.
+- **Silence** (`silence` link) — stop an in-progress incoming-message alert from the
+  phone, without walking over to press a key.
+- **Delete** — remove a friend (and its whole conversation) or an individual message
+  via the ✕ buttons. Per-record only; no bulk wipe.
+- **Backup-power alert** — there is no USB/charge-detect pin, so the device infers power
+  state from the battery gauge: if the charge falls past a threshold (it never does on
+  USB power), it sounds a distinctive **falling cue** and shows an **"ON BATTERY"**
+  banner — your signal that USB power was lost and the backup pack is draining.
 
 ---
 

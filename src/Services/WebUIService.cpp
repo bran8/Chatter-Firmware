@@ -3,8 +3,10 @@
 #include "../Storage/Storage.h"
 #include "MessageService.h"
 #include "ProfileService.h"
+#include "BuzzerService.h"
 #include <Audio/Piezo.h>
 #include <Battery/BatteryService.h>
+#include <SPIFFS.h>
 
 WebUIService WebUI;
 
@@ -15,9 +17,15 @@ WebUIService WebUI;
 static const WebUIService::CueNote BootCue[]       = {{523, 90}, {659, 90}, {784, 140}};  // C5-E5-G5 rising: AP is up
 static const WebUIService::CueNote ConnectCue[]    = {{523, 80}, {784, 120}};             // C5-G5 rising: phone joined
 static const WebUIService::CueNote DisconnectCue[] = {{784, 80}, {523, 120}};             // G5-C5 falling: phone left
+static const WebUIService::CueNote LowBattCue[]    = {{660, 120}, {523, 120}, {392, 220}}; // E5-C5-G4 falling: pack draining
 
 // Silence inserted after each note, in ms, so back-to-back notes are audible.
 static const uint16_t CueGapMs = 40;
+
+// Battery-percentage thresholds for the backup-power alert (with hysteresis).
+static const uint8_t BattWarnPct = 25;
+static const uint8_t BattCritPct = 8;
+static const uint8_t BattClearMargin = 5;   // must recover this far above to re-arm
 
 // Change this before flashing -- WPA2 requires at least 8 characters.
 static const char* AP_PASSWORD = "chatterwifi";
@@ -42,17 +50,38 @@ input,button{font-size:1em;padding:6px;margin:4px 0}
 #compose input{flex:1}
 a{color:#8cf}
 .hidden{display:none}
+.friend img,.av{width:34px;height:41px;border-radius:6px;vertical-align:middle;background:#333}
+.frow{display:flex;align-items:center;gap:8px;flex:1;cursor:pointer;min-width:0}
+.frow span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.del{background:#622;color:#fdd;border:none;border-radius:6px;padding:4px 8px;cursor:pointer}
+.msg{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+#banner{background:#622;color:#fee;padding:8px 10px;text-align:center;font-weight:bold}
+#avgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:10px}
+#avgrid img{width:100%;height:auto;border-radius:8px;border:2px solid transparent;cursor:pointer}
+#avgrid img.sel{border-color:#8cf}
+.field{padding:0 10px}
 </style>
 </head>
 <body>
 <header>
   <strong>Chatter</strong>
-  <span><a href="#" onclick="showPair();return false;">pair</a> | <span id="status" title="battery / pending / connected clients">--</span></span>
+  <span><a href="#" onclick="showProfile();return false;">me</a> | <a href="#" onclick="showPair();return false;">pair</a> | <a href="#" onclick="silence();return false;">silence</a></span>
 </header>
+<div id="banner" class="hidden"></div>
+<div id="status" class="field" title="battery / pending / connected clients" style="opacity:.7;font-size:.85em">--</div>
 
 <div id="friendsView">
   <div id="friends"></div>
   <button onclick="broadcast()">Broadcast message...</button>
+</div>
+
+<div id="profileView" class="hidden">
+  <header><a href="#" onclick="showFriends();return false;">&larr; back</a> &nbsp; <strong>My profile</strong></header>
+  <div class="field"><label>Name <input id="profName" maxlength="20"></label></div>
+  <div class="field"><label>Color hue <input id="profHue" type="range" min="0" max="359"></label></div>
+  <p class="field">Pick an avatar:</p>
+  <div id="avgrid"></div>
+  <div class="field"><button onclick="saveProfile()">Save profile</button></div>
 </div>
 
 <div id="convoView" class="hidden">
@@ -72,15 +101,19 @@ a{color:#8cf}
 <script>
 let currentConvo = null;
 let pairTimer = null;
+let selectedAvatar = 0;
 
 function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+function show(view){
+  ['friendsView','convoView','pairView','profileView'].forEach(v=>
+    document.getElementById(v).classList.toggle('hidden', v!==view));
+}
+
 function showFriends(){
-  document.getElementById('friendsView').classList.remove('hidden');
-  document.getElementById('convoView').classList.add('hidden');
-  document.getElementById('pairView').classList.add('hidden');
+  show('friendsView');
   if(pairTimer){ clearInterval(pairTimer); pairTimer=null; }
   loadFriends();
 }
@@ -93,11 +126,19 @@ function loadFriends(){
       const div = document.getElementById('friends');
       div.innerHTML = '';
       convos.forEach(c=>{
-        const f = byUid[c.uid] || {nickname:'(unknown)'};
+        const f = byUid[c.uid] || {nickname:'(unknown)', avatar:99};
         const el = document.createElement('div');
         el.className = 'friend';
-        el.innerHTML = '<span>'+escapeHtml(f.nickname)+(c.unread?' *':'')+'</span><span>'+escapeHtml(c.lastMessage||'')+'</span>';
-        el.onclick = ()=>openConvo(c.uid, f.nickname);
+        const row = document.createElement('div');
+        row.className = 'frow';
+        row.innerHTML = '<img class="av" src="/api/avatar?i='+f.avatar+'" onerror="this.style.visibility=\'hidden\'">'+
+          '<span>'+escapeHtml(f.nickname)+(c.unread?' *':'')+'</span>'+
+          '<span style="opacity:.6">'+escapeHtml(c.lastMessage||'')+'</span>';
+        row.onclick = ()=>openConvo(c.uid, f.nickname);
+        const del = document.createElement('button');
+        del.className = 'del'; del.innerText = '✕';
+        del.onclick = (e)=>{ e.stopPropagation(); deleteFriend(c.uid, f.nickname); };
+        el.appendChild(row); el.appendChild(del);
         div.appendChild(el);
       });
     });
@@ -110,13 +151,57 @@ function refreshStatus(){
     document.getElementById('status').innerText =
       'batt ' + s.battery + '% (' + (s.mv/1000).toFixed(2) + 'V) | pending ' + s.pending +
       ' | clients ' + s.clients + ' | up ' + mins + 'm';
+    const banner = document.getElementById('banner');
+    if(s.lowBattery){
+      banner.classList.remove('hidden');
+      banner.innerText = (s.criticalBattery ? '⚠ CRITICAL BATTERY ' : '⚠ ON BATTERY — low ')
+        + '(' + s.battery + '%) — check USB power';
+    }else{
+      banner.classList.add('hidden');
+    }
   }).catch(()=>{});
+}
+
+function silence(){
+  fetch('/api/silence', {method:'POST'});
+}
+
+function deleteFriend(uid, name){
+  if(!confirm('Delete '+name+' and the whole conversation?')) return;
+  fetch('/api/friends/delete', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:'uid='+uid}).then(()=>loadFriends());
+}
+
+function showProfile(){
+  show('profileView');
+  fetch('/api/profile').then(r=>r.json()).then(p=>{
+    document.getElementById('profName').value = p.nickname;
+    document.getElementById('profHue').value = p.hue;
+    selectedAvatar = p.avatar;
+    const grid = document.getElementById('avgrid');
+    grid.innerHTML = '';
+    for(let i=0;i<15;i++){
+      const img = document.createElement('img');
+      img.src = '/api/avatar?i='+i;
+      if(i===selectedAvatar) img.className='sel';
+      img.onclick = ()=>{ selectedAvatar=i;
+        grid.querySelectorAll('img').forEach((x,j)=>x.className=(j===i?'sel':'')); };
+      grid.appendChild(img);
+    }
+  });
+}
+
+function saveProfile(){
+  const name = document.getElementById('profName').value;
+  const hue = document.getElementById('profHue').value;
+  fetch('/api/profile', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:'nickname='+encodeURIComponent(name)+'&avatar='+selectedAvatar+'&hue='+hue})
+    .then(()=>{ alert('Profile saved'); showFriends(); });
 }
 
 function openConvo(uid, nickname){
   currentConvo = uid;
-  document.getElementById('friendsView').classList.add('hidden');
-  document.getElementById('convoView').classList.remove('hidden');
+  show('convoView');
   fetch('/api/read', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'uid='+uid});
   loadConvo();
 }
@@ -129,11 +214,23 @@ function loadConvo(){
     msgs.forEach(m=>{
       const el = document.createElement('div');
       el.className = 'msg ' + (m.outgoing ? 'out' : 'in');
-      el.innerText = (m.type === 'text' ? m.text : '[pic '+m.pic+']') + (m.outgoing ? (m.received?' (ack)':' (sending...)') : '');
+      const txt = (m.type === 'text' ? m.text : '[pic '+m.pic+']') + (m.outgoing ? (m.received?' (ack)':' (sending...)') : '');
+      const span = document.createElement('span');
+      span.innerText = txt;
+      const del = document.createElement('button');
+      del.className = 'del'; del.innerText = '✕';
+      del.onclick = ()=>deleteMessage(m.uid);
+      el.appendChild(span); el.appendChild(del);
       div.appendChild(el);
     });
     div.scrollTop = div.scrollHeight;
   });
+}
+
+function deleteMessage(msgUid){
+  if(!confirm('Delete this message?')) return;
+  fetch('/api/messages/delete', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:'convo='+currentConvo+'&msg='+msgUid}).then(()=>loadConvo());
 }
 
 function send(){
@@ -152,8 +249,7 @@ function broadcast(){
 }
 
 function showPair(){
-  document.getElementById('friendsView').classList.add('hidden');
-  document.getElementById('pairView').classList.remove('hidden');
+  show('pairView');
   fetch('/api/pair/start', {method:'POST'}).then(()=>{
     refreshPair();
     pairTimer = setInterval(refreshPair, 2000);
@@ -215,6 +311,10 @@ void WebUIService::begin(){
 	server.on("/api/status", HTTP_GET, [this](){ handleStatus(); });
 	server.on("/api/profile", HTTP_GET, [this](){ handleGetProfile(); });
 	server.on("/api/profile", HTTP_POST, [this](){ handleSetProfile(); });
+	server.on("/api/avatar", HTTP_GET, [this](){ handleAvatar(); });
+	server.on("/api/silence", HTTP_POST, [this](){ handleSilence(); });
+	server.on("/api/friends/delete", HTTP_POST, [this](){ handleDeleteFriend(); });
+	server.on("/api/messages/delete", HTTP_POST, [this](){ handleDeleteMessage(); });
 	server.on("/api/pair/start", HTTP_POST, [this](){ handlePairStart(); });
 	server.on("/api/pair/discovered", HTTP_GET, [this](){ handlePairDiscovered(); });
 	server.on("/api/pair/confirm", HTTP_POST, [this](){ handlePairConfirm(); });
@@ -244,7 +344,39 @@ void WebUIService::loop(uint micros){
 		pollStations();
 	}
 
+	// Battery moves slowly; check every ~5s.
+	batteryPollTimer += micros;
+	if(batteryPollTimer >= 5000000){
+		batteryPollTimer = 0;
+		pollBattery();
+	}
+
 	updateCue(micros);
+}
+
+void WebUIService::pollBattery(){
+	uint8_t pct = Battery.getPercentage();
+
+	// Critical crossing (downward) -- chirp once and latch.
+	if(pct <= BattCritPct){
+		if(!criticalBattery){
+			criticalBattery = true;
+			lowBattery = true;
+			playCue(LowBattCue, sizeof(LowBattCue) / sizeof(LowBattCue[0]));
+		}
+	}else if(pct > BattCritPct + BattClearMargin){
+		criticalBattery = false;
+	}
+
+	// Warn crossing (downward) -- chirp once and latch.
+	if(pct <= BattWarnPct){
+		if(!lowBattery){
+			lowBattery = true;
+			playCue(LowBattCue, sizeof(LowBattCue) / sizeof(LowBattCue[0]));
+		}
+	}else if(pct > BattWarnPct + BattClearMargin){
+		lowBattery = false;   // recovered (e.g. USB power restored, pack charging)
+	}
 }
 
 void WebUIService::pollStations(){
@@ -406,6 +538,8 @@ void WebUIService::handleStatus(){
 	json += ",\"clients\":" + String(WiFi.softAPgetStationNum());
 	json += ",\"uptime\":" + String(millis() / 1000);
 	json += ",\"heap\":" + String(ESP.getFreeHeap());
+	json += ",\"lowBattery\":" + String(lowBattery ? "true" : "false");
+	json += ",\"criticalBattery\":" + String(criticalBattery ? "true" : "false");
 	json += "}";
 	server.send(200, "application/json", json);
 }
@@ -486,6 +620,86 @@ void WebUIService::handlePairCancel(){
 		pairService = nullptr;
 	}
 	server.send(200, "application/json", "{\"ok\":true}");
+}
+
+void WebUIService::handleSilence(){
+	Buzz.silenceAlert();
+	server.send(200, "application/json", "{\"ok\":true}");
+}
+
+void WebUIService::handleDeleteFriend(){
+	UID_t uid = hexToUid(server.arg("uid"));
+	bool ok = Messages.deleteFriend(uid);
+	server.send(200, "application/json", String("{\"ok\":") + (ok ? "true" : "false") + "}");
+}
+
+void WebUIService::handleDeleteMessage(){
+	UID_t convo = hexToUid(server.arg("convo"));
+	UID_t msg = hexToUid(server.arg("msg"));
+	bool ok = Messages.deleteMessage(convo, msg);
+	server.send(200, "application/json", String("{\"ok\":") + (ok ? "true" : "false") + "}");
+}
+
+// Serve one built-in avatar (index 0-14) as a BMP the browser can render. The
+// stored asset is a raw LVGL image: a 4-byte header followed by 34x41 RGB565
+// big-endian pixels. We transcode to a top-down 24-bit BMP on the fly -- no
+// image library or SPIFFS changes needed.
+void WebUIService::handleAvatar(){
+	int idx = server.arg("i").toInt();
+	if(idx < 0 || idx > 14){
+		server.send(404, "text/plain", "no such avatar");
+		return;
+	}
+
+	char path[40];
+	snprintf(path, sizeof(path), "/Avatars/large/%d.bin", idx + 1);
+	File f = SPIFFS.open(path, "r");
+	if(!f){
+		server.send(404, "text/plain", "avatar not found");
+		return;
+	}
+
+	const uint8_t W = AvatarW, H = AvatarH;
+	const uint8_t rowStride = (W * 3 + 3) & ~3;          // BMP rows pad to 4 bytes
+	const uint32_t pixels = (uint32_t) rowStride * H;
+	const uint32_t fileSize = 54 + pixels;
+
+	uint8_t hdr[54] = {0};
+	hdr[0] = 'B'; hdr[1] = 'M';
+	hdr[2] = fileSize; hdr[3] = fileSize >> 8; hdr[4] = fileSize >> 16; hdr[5] = fileSize >> 24;
+	hdr[10] = 54;                                          // pixel data offset
+	hdr[14] = 40;                                          // DIB header size
+	hdr[18] = W;                                           // width  (<=255, one byte)
+	hdr[22] = (uint8_t) (-(int32_t) H); hdr[23] = 0xFF; hdr[24] = 0xFF; hdr[25] = 0xFF; // negative height = top-down
+	hdr[26] = 1;                                           // planes
+	hdr[28] = 24;                                          // bits per pixel
+	hdr[34] = pixels; hdr[35] = pixels >> 8; hdr[36] = pixels >> 16; hdr[37] = pixels >> 24;
+
+	f.seek(4);   // skip the 4-byte LVGL header
+
+	server.setContentLength(fileSize);
+	server.send(200, "image/bmp", "");
+	server.sendContent_P((PGM_P) hdr, 54);
+
+	uint8_t row[3 * 256];   // rowStride <= 34*3 padded; well within this buffer
+	for(uint8_t y = 0; y < H; y++){
+		uint16_t p = 0;
+		for(uint8_t x = 0; x < W; x++){
+			uint8_t b1 = f.read();
+			uint8_t b2 = f.read();
+			uint16_t px = ((uint16_t) b1 << 8) | b2;       // RGB565, big-endian
+			uint8_t r = (px >> 11) & 0x1F;
+			uint8_t g = (px >> 5) & 0x3F;
+			uint8_t b = px & 0x1F;
+			// BMP stores BGR
+			row[p++] = (b * 527 + 23) >> 6;
+			row[p++] = (g * 259 + 33) >> 6;
+			row[p++] = (r * 527 + 23) >> 6;
+		}
+		while(p < rowStride) row[p++] = 0;                 // pad
+		server.sendContent_P((PGM_P) row, rowStride);
+	}
+	f.close();
 }
 
 void WebUIService::handleNotFound(){

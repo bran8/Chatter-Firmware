@@ -19,6 +19,11 @@ public:
 
 	// Short low error tone for invalid T9 keystrokes.
 	void emitBeep();
+
+	// Stop an in-progress incoming-message alert without a physical keypress.
+	// Used by the headless web UI's "silence" button (same effect as pressing a
+	// key on a screen device). Safe to call when no alert is active.
+	void silenceAlert();
 private:
 	void buttonPressed(uint i) override;
 	void msgReceived(const Message &message) override;

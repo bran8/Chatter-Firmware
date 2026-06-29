@@ -38,6 +38,10 @@ private:
 	void handleStatus();
 	void handleGetProfile();
 	void handleSetProfile();
+	void handleAvatar();          // serves a built-in avatar as a BMP for the picker
+	void handleSilence();         // stop an in-progress incoming-message alert
+	void handleDeleteFriend();    // remove a friend + its conversation
+	void handleDeleteMessage();   // remove one message from a conversation
 	void handlePairStart();
 	void handlePairDiscovered();
 	void handlePairConfirm();
@@ -67,6 +71,21 @@ private:
 	uint8_t activeCueLen = 0;
 	uint8_t cueIndex = 0;
 	uint32_t cueTimer = 0;                 // micros accumulated in current note slot
+
+	// --- Low-battery / backup-power alert ---------------------------------
+	// There is no USB/charge-detect pin (only the battery ADC), so we can't sense
+	// "USB just unplugged" directly. Instead we watch the battery percentage: on
+	// USB power it stays high, so a drop past a threshold means the pack is
+	// draining on backup. We chirp a distinctive falling cue once per downward
+	// crossing (hysteresis avoids repeat nagging) and expose lowBattery in the
+	// status JSON so the web page can show an "ON BATTERY" banner.
+	void pollBattery();
+	uint32_t batteryPollTimer = 0;
+	bool lowBattery = false;               // <= warn threshold (shown on web)
+	bool criticalBattery = false;          // <= critical threshold
+
+	static const uint8_t AvatarW = 34;     // built-in large avatar dimensions
+	static const uint8_t AvatarH = 41;
 };
 
 extern WebUIService WebUI;
