@@ -115,6 +115,7 @@ let pairTimer = null;        // /api/pair/discovered scan poll (2s)
 let pairStatusTimer = null;  // /api/pair/status result poll (1s)
 let pairing = false;         // a pair-confirm is in progress (greys the buttons, blocks re-taps)
 let selectedAvatar = 0;
+let avatarLoadToken = 0;     // bumped each time the avatar grid loads; cancels a stale chain
 
 // In-flight guards: a periodic poll skips its tick if its own previous request
 // hasn't returned yet, so a briefly-slow (single-client) server can't let
@@ -215,14 +216,30 @@ function showProfile(){
     selectedAvatar = p.avatar;
     const grid = document.getElementById('avgrid');
     grid.innerHTML = '';
+    const imgs = [];
     for(let i=0;i<15;i++){
       const img = document.createElement('img');
-      img.src = '/api/avatar?i='+i;
       if(i===selectedAvatar) img.className='sel';
       img.onclick = ()=>{ selectedAvatar=i;
         grid.querySelectorAll('img').forEach((x,j)=>x.className=(j===i?'sel':'')); };
       grid.appendChild(img);
+      imgs.push(img);
     }
+    // Load avatars ONE AT A TIME. The device serves a single connection at a
+    // time, so setting all 15 <img> srcs at once makes the browser open
+    // parallel connections that stall behind each other (and block /api/status
+    // etc.), making the whole UI feel hung. Chaining each load off the previous
+    // keeps exactly one avatar request in flight. The token cancels this chain
+    // if the grid is rebuilt (e.g. the profile view is reopened) before it ends.
+    const token = ++avatarLoadToken;
+    let n = 0;
+    const loadNext = ()=>{
+      if(n >= imgs.length || token !== avatarLoadToken) return;
+      const img = imgs[n];
+      img.onload = img.onerror = ()=>{ n++; loadNext(); };
+      img.src = '/api/avatar?i=' + n;
+    };
+    loadNext();
   });
 }
 
