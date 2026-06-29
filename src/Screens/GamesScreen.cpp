@@ -10,17 +10,16 @@
 #include "../Elements/ListItem.h"
 #include "PairScreen.h"
 #include "ProfileScreen.h"
-#include "../Games/Space/SpaceRocks.h"
 #include "../FSLVGL.h"
-#include "../Games/Invaders/SpaceInvaders.h"
-#include "../Games/Snake/Snake.h"
 #include "../Elements/GameItem.h"
 
-const GamesScreen::GameInfo GamesScreen::Games[] = {
-		{ "Space rocks", "S:/Games/Icons/Space.bin", [](GamesScreen* gamesScreen) -> Game* { return new SpaceRocks(gamesScreen); }, "/Games/Space/splash.raw" },
-		{ "Invaderz", "S:/Games/Icons/Invaders.bin", [](GamesScreen* gamesScreen) -> Game* { return new SpaceInvaders::SpaceInvaders(gamesScreen); } },
-		{ "Snake", "S:/Games/Icons/Snake.bin", [](GamesScreen* gamesScreen) -> Game* { return new Snake::Snake(gamesScreen); } },
-};
+// Headless-wifi branch: there's no LCD to play games on, so the actual game
+// implementations (Space/Invaders/Snake) and their data/Games assets were
+// removed from this branch entirely. This screen is unreachable anyway (no
+// MainMenu is ever created in the headless boot path) but stays as an empty
+// shell so GameEngine/Game.h (still needed by SleepService/ShutdownService)
+// keeps compiling.
+const GamesScreen::GameInfo GamesScreen::Games[] = {};
 
 GamesScreen::GamesScreen() : LVScreen(), apop(this){
 	lv_obj_set_height(obj, LV_SIZE_CONTENT);

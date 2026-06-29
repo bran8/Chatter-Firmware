@@ -83,9 +83,6 @@ private:
 	uint32_t batteryPollTimer = 0;
 	bool lowBattery = false;               // <= warn threshold (shown on web)
 	bool criticalBattery = false;          // <= critical threshold
-
-	static const uint8_t AvatarW = 34;     // built-in large avatar dimensions
-	static const uint8_t AvatarH = 41;
 };
 
 extern WebUIService WebUI;

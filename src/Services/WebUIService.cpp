@@ -640,10 +640,12 @@ void WebUIService::handleDeleteMessage(){
 	server.send(200, "application/json", String("{\"ok\":") + (ok ? "true" : "false") + "}");
 }
 
-// Serve one built-in avatar (index 0-14) as a BMP the browser can render. The
-// stored asset is a raw LVGL image: a 4-byte header followed by 34x41 RGB565
-// big-endian pixels. We transcode to a top-down 24-bit BMP on the fly -- no
-// image library or SPIFFS changes needed.
+// Serve one built-in avatar (index 0-14) as a BMP the browser can render.
+// Pre-converted offline (see data/Avatars/large/bin2bmp.py) from the LVGL
+// LV_IMG_CF_INDEXED_8BIT source asset, so this is a plain static file send --
+// no on-device decode. The original on-the-fly transcode (palette lookup +
+// blend per pixel, per request) was heavy enough to crash the unit after a
+// handful of avatar requests; pre-baked BMPs avoid that entirely.
 void WebUIService::handleAvatar(){
 	int idx = server.arg("i").toInt();
 	if(idx < 0 || idx > 14){
@@ -652,53 +654,14 @@ void WebUIService::handleAvatar(){
 	}
 
 	char path[40];
-	snprintf(path, sizeof(path), "/Avatars/large/%d.bin", idx + 1);
+	snprintf(path, sizeof(path), "/Avatars/large/%d.bmp", idx + 1);
 	File f = SPIFFS.open(path, "r");
 	if(!f){
 		server.send(404, "text/plain", "avatar not found");
 		return;
 	}
 
-	const uint8_t W = AvatarW, H = AvatarH;
-	const uint8_t rowStride = (W * 3 + 3) & ~3;          // BMP rows pad to 4 bytes
-	const uint32_t pixels = (uint32_t) rowStride * H;
-	const uint32_t fileSize = 54 + pixels;
-
-	uint8_t hdr[54] = {0};
-	hdr[0] = 'B'; hdr[1] = 'M';
-	hdr[2] = fileSize; hdr[3] = fileSize >> 8; hdr[4] = fileSize >> 16; hdr[5] = fileSize >> 24;
-	hdr[10] = 54;                                          // pixel data offset
-	hdr[14] = 40;                                          // DIB header size
-	hdr[18] = W;                                           // width  (<=255, one byte)
-	hdr[22] = (uint8_t) (-(int32_t) H); hdr[23] = 0xFF; hdr[24] = 0xFF; hdr[25] = 0xFF; // negative height = top-down
-	hdr[26] = 1;                                           // planes
-	hdr[28] = 24;                                          // bits per pixel
-	hdr[34] = pixels; hdr[35] = pixels >> 8; hdr[36] = pixels >> 16; hdr[37] = pixels >> 24;
-
-	f.seek(4);   // skip the 4-byte LVGL header
-
-	server.setContentLength(fileSize);
-	server.send(200, "image/bmp", "");
-	server.sendContent_P((PGM_P) hdr, 54);
-
-	uint8_t row[3 * 256];   // rowStride <= 34*3 padded; well within this buffer
-	for(uint8_t y = 0; y < H; y++){
-		uint16_t p = 0;
-		for(uint8_t x = 0; x < W; x++){
-			uint8_t b1 = f.read();
-			uint8_t b2 = f.read();
-			uint16_t px = ((uint16_t) b1 << 8) | b2;       // RGB565, big-endian
-			uint8_t r = (px >> 11) & 0x1F;
-			uint8_t g = (px >> 5) & 0x3F;
-			uint8_t b = px & 0x1F;
-			// BMP stores BGR
-			row[p++] = (b * 527 + 23) >> 6;
-			row[p++] = (g * 259 + 33) >> 6;
-			row[p++] = (r * 527 + 23) >> 6;
-		}
-		while(p < rowStride) row[p++] = 0;                 // pad
-		server.sendContent_P((PGM_P) row, rowStride);
-	}
+	server.streamFile(f, "image/bmp");
 	f.close();
 }
 
