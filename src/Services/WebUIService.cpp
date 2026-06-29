@@ -4,6 +4,7 @@
 #include "MessageService.h"
 #include "ProfileService.h"
 #include <Audio/Piezo.h>
+#include <Battery/BatteryService.h>
 
 WebUIService WebUI;
 
@@ -46,7 +47,7 @@ a{color:#8cf}
 <body>
 <header>
   <strong>Chatter</strong>
-  <span><a href="#" onclick="showPair();return false;">pair</a> | pending: <span id="pending">0</span></span>
+  <span><a href="#" onclick="showPair();return false;">pair</a> | <span id="status" title="battery / pending / connected clients">--</span></span>
 </header>
 
 <div id="friendsView">
@@ -101,7 +102,15 @@ function loadFriends(){
       });
     });
   });
-  fetch('/api/pending').then(r=>r.json()).then(p=>document.getElementById('pending').innerText=p.pending);
+}
+
+function refreshStatus(){
+  fetch('/api/status').then(r=>r.json()).then(s=>{
+    const mins = Math.floor(s.uptime/60);
+    document.getElementById('status').innerText =
+      'batt ' + s.battery + '% (' + (s.mv/1000).toFixed(2) + 'V) | pending ' + s.pending +
+      ' | clients ' + s.clients + ' | up ' + mins + 'm';
+  }).catch(()=>{});
 }
 
 function openConvo(uid, nickname){
@@ -181,6 +190,8 @@ function confirmPair(index){
 }
 
 showFriends();
+refreshStatus();
+setInterval(refreshStatus, 10000);
 </script>
 </body>
 </html>
@@ -201,6 +212,7 @@ void WebUIService::begin(){
 	server.on("/api/broadcast", HTTP_POST, [this](){ handleBroadcast(); });
 	server.on("/api/read", HTTP_POST, [this](){ handleMarkRead(); });
 	server.on("/api/pending", HTTP_GET, [this](){ handlePending(); });
+	server.on("/api/status", HTTP_GET, [this](){ handleStatus(); });
 	server.on("/api/profile", HTTP_GET, [this](){ handleGetProfile(); });
 	server.on("/api/profile", HTTP_POST, [this](){ handleSetProfile(); });
 	server.on("/api/pair/start", HTTP_POST, [this](){ handlePairStart(); });
@@ -382,6 +394,20 @@ void WebUIService::handleMarkRead(){
 
 void WebUIService::handlePending(){
 	server.send(200, "application/json", "{\"pending\":" + String(Messages.pendingCount()) + "}");
+}
+
+void WebUIService::handleStatus(){
+	// One poll for the header: battery, link, and health. Watching mV over time
+	// is also a handy way to gauge how fast Wi-Fi drains the pack on backup power.
+	String json = "{";
+	json += "\"battery\":" + String(Battery.getPercentage());
+	json += ",\"mv\":" + String(Battery.getVoltage());
+	json += ",\"pending\":" + String(Messages.pendingCount());
+	json += ",\"clients\":" + String(WiFi.softAPgetStationNum());
+	json += ",\"uptime\":" + String(millis() / 1000);
+	json += ",\"heap\":" + String(ESP.getFreeHeap());
+	json += "}";
+	server.send(200, "application/json", json);
 }
 
 void WebUIService::handleGetProfile(){

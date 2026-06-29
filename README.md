@@ -1,198 +1,110 @@
-# Chatter 2.0 Green
-
-This fork adds my custom tweaks for Chatter 2.0.  Agentic Engineering assisted, peer review welcome.
-
-**Key improvements:**
-
-- **Broadcast to all friends** – send one message that goes to all your friends
-- *T9* - Basic version of T9 word entry using unrefined frequency wordlist 
-- **Retry until Ack** – all sends are retried until acknowledged by receiver (Go to Settings to clear the sending queue to clear the airwaves)
-- **Incoming Annoyance** – incoming messages are important, play sound continuiously until silenced
-- **Canned responses** – Long Press to type a pre-canned message (Go to Settings to customize)
-
-Quality of Life
-
-- Wrap around menus (sacrificing some animation)
-- Keep draft message
-
-Detailed Setup that worked for me: 
-
-I deploy firmware from a Windows 11 PC running Arduino IDE version 2.3.4   (https://www.arduino.cc/en/software/)  
-
-On first use, I opened Preferences and added this URL to the Boards Manager:  
-
-https://raw.githubusercontent.com/CircuitMess/Arduino-Packages/master/package_circuitmess.com_esp32_index.json
-
-Click Tools -> Board -> Boards Manager...    (or CTRL+Shift+B)
-
-Search for "circuitmess"
-
-Install 1.8.3 for ESP32 Boards by CircuitMess
-
-Then on the Select Board pull-down selector, you can find the "Boards" called: **Chatter 2.0 by CircuitMess**
-
-On my system, it connected to COM4 Serial Port (USB)
-
-Click File->Open-> **Chatter-Firmware.ino**
-
-Click the "Checkmark" to verify.  It will "Compiling sketch..." for a few minutes.
-
-I get a conflict error with overlapping candidates; void Sprite::pushImage and void lgfx::v1::LGFXBase::pushImage.  It does not stop me from Uploading the sketch to the device successfully.
-
-If you need to factory restore the device, login to https://code.circuitmess.com/ and click on Restore Firmware in the top-right corner. 
-
-## Serial Monitor
-
-Set Baud to 115200
-
-# Chatter Firmware
-
-> The repository for the core firmware that comes preloaded on every Chatter.
-
-Put together and code two encrypted wireless communicators.
-
-# Compiling
-
-The firmware is based on the [Chatter Library](https://github.com/CircuitMess/Chatter-Library).
-
-The library is included with other device libraries in the CircuitMess ESP32 Arduino platform.
-
-More info and installation instructions
-on [CircuitMess/Arduino-Packages](https://github.com/CircuitMess/Arduino-Packages).
-
-## Using Arduino IDE
-
-### Installing the package
-
-Follow the package installation
-instructions [here](https://github.com/CircuitMess/Arduino-Packages?tab=readme-ov-file#installation).
-
-### Building
-
-Open Chatter-Firmware.ino using Arduino IDE, set the board to Chatter, and compile.
-
-## Using CMake
-
-To compile and upload, you need to have [CMake](https://cmake.org/)
-and [arduino-cli](https://github.com/arduino/arduino-cli) installed. You also need to have both of
-them registered in the PATH.
-
-In the CMakeLists.txt file, change the port to your desired COM port (default is /dev/ttyUSB0):
-
-```
-set(PORT /dev/ttyUSB0)
-```
-
-Then in the root directory of the repository type:
-
-```
-mkdir cmake
-cd cmake
-cmake ..
-cmake --build . --target CMBuild
-```
-
-This will compile the binaries and place the .bin and .elf files in the build/ directory located in
-the root of the repository.
-
-To compile the binary and upload it according to the port set in CMakeLists.txt, run
-
-```
-cmake --build . --target CMBuild
-```
-
-in the cmake directory.
-
-# Uploading SPIFFS
-
-The ESP32 contains a Serial Peripheral Interface Flash File System (SPIFFS). SPIFFS is a
-lightweight filesystem created for microcontrollers with a flash chip.
-
-Here are stored UI and audio assets used in the firmware.
-
-## Using the Arduino ESP32 filesystem uploader plugin (only for Arduino 1.X)
-
-Install the [plugin](https://github.com/me-no-dev/arduino-esp32fs-plugin) following the instructions
-from
-the [README.md](https://github.com/me-no-dev/arduino-esp32fs-plugin?tab=readme-ov-file#installation)
-
-Then from the opened sketch select Tools > ESP32 Sketch Data Upload menu item. This should start
-uploading the files into ESP32 flash filesystem.
-
-## Using the mkspiffs utility
-
-When building with CMake or Arduino 2.X, you will need to build and upload the SPIFFS image
-separately.
-
-First, download the latest [mkspiffs](https://github.com/igrr/mkspiffs) utility for your OS with
-the "-arduino-esp32" suffix. (For
-example, [mkspiffs-0.2.3-arduino-esp32-win32.zip](https://github.com/igrr/mkspiffs/releases/download/0.2.3/mkspiffs-0.2.3-arduino-esp32-win32.zip)
-for Windows).
-
-Then create the binary SPIFFS image using the command in the root of the project:
-
-```
-mkspiffs -c data -s 0x1EF000 -b 4096 -p 256 spiffs.bin
-```
-
-The block size (-b) and page size (-p) parameters should stay as-is.
-
-The size parameter (-s) can be determined from the board-specific SPIFFS partition size, which
-can be found in the
-platform [boards.txt](https://github.com/CircuitMess/Arduino-ESP32/blob/master/boards.txt) under
-`<device>.menu.PartitionScheme.min_spiffs.upload.maximum_size`
-
-For uploading the image, you will need to download [esptool](https://github.com/espressif/esptool).
-
-Then, flash the compiled image to the board.
-
-The SPIFFS partition address will be defined alongside the SPIFFS partitions size, under
-`<device>.menu.PartitionScheme.min_spiffs.upload.spiffs_start`.
-This parameter is used in the
-following esptool command call (before referencing the built image):
-
-```
-esptool --chip esp32 --baud 921600  --before default_reset --after hard_reset write_flash -z --flash_mode dio --flash_freq 80m --flash_size detect 0x211000 spiffs.bin
-```
-
-# Restoring the stock firmware
-
-There are three main ways to restore the stock firmware:
-
-### 1) Restoring using esptool
-
-For uploading the firmware this way, you will need to
-download [esptool](https://github.com/espressif/esptool).
-
-Then download the prebuilt binary on
-the [releases page](https://github.com/CircuitMess/Chatter-Firmware/releases) of this repository
-and flash it manually using esptool:
-
-```shell
-esptool write_flash 0x0 Codee-Firmware.bin
-```
-
-### 2) Restoring using Arduino's burn bootloader option
-
-This Arduino option is usually reserved for bootloader flashing.
-
-For devices included in the CircuitMess ESP32 Arduino platform this will actually restore the
-firmware.
-
-Open this project in Arduino and select your board in the `Tools > Board` dropdown menu.
-
-Then select the appropriate firmware under `Tools > Programmer` and click the `Tools > Burn 
-bootloader` option.
-
-### 3) Restoring using CircuitBlocks
-
-[CircuitBlocks](https://code.circuitmess.com/) is our educational block-based coding platform.
-
-You can also restore your firmware here by logging in, clicking the "Restore Firmware" button in the top-right corner,
-and following the on-screen instructions.
+# Chatter 2.0 — Headless Wi-Fi Mode
+
+This branch (`headless-wifi`) is a special build for a **device whose LCD is
+physically broken**. Instead of scrapping the unit, it boots with **no screen and
+no keypad UI** and is controlled entirely from a phone browser over Wi-Fi.
+
+> **This branch is for one broken device only.** `master` is untouched — the other
+> devices keep building and behaving exactly as before. Build/flash the broken unit
+> from this branch; build everything else from `master`.
 
 ---
 
-Copyright © 2025 CircuitMess
+## Why this exists
 
-Licensed under [MIT License](https://opensource.org/licenses/MIT).
+One Chatter's display died. Everything *behind* the screen — the LoRa radio, the
+message store, friends, broadcast, retry-until-ACK, pairing — still works perfectly;
+the only thing gone is the way to *see* and *drive* it. So this build:
+
+- **Skips all display/LVGL setup** (no splash, no menus, no `IntroScreen`, no keypad
+  input listener). Saves the power the backlight + rendering would have used.
+- **Brings up the messaging stack exactly as the normal firmware does** — `Storage`,
+  `LoRaService`, `MessageService`, `ProfileService`, `PairService` are all reused
+  unmodified. They were already decoupled from the UI.
+- **Starts a Wi-Fi Access Point + small web server** as the new control surface.
+
+You connect your phone to the device's Wi-Fi network and visit its web page to add
+friends, open conversations, send messages, broadcast, and pair new devices —
+everything the screen-equipped units can do.
+
+---
+
+## The LCD can be physically unplugged
+
+**You can run this device with the LCD ribbon removed/disconnected — it boots fine.**
+
+The vendor display driver writes its init sequence one-way over a dedicated SPI bus
+and never reads back from the panel (no MISO, no busy line, `readable = false`). There
+is no handshake that can fail and nothing to block on, so a missing or disconnected
+panel is simply ignored. The display SPI bus is also separate from the LoRa radio's
+bus, so removing the screen can't disturb radio communication.
+
+Removing the dead panel is optional, but it's safe — and it saves a little power.
+
+---
+
+## Sound is the indicator (works great)
+
+With no screen, the **buzzer is the only feedback channel**, so the build chirps short
+non-blocking melodies for the events that matter:
+
+| Event | Cue |
+| --- | --- |
+| Boot / AP is up | C5–E5–G5 **rising** chime — "I booted, Wi-Fi is live" |
+| A phone connects to the AP | C5–G5 **rising** |
+| A phone disconnects | G5–C5 **falling** |
+
+Cues honor the global sound setting (silent if sound is turned off). The boot chime is
+your confirmation that the firmware came up and the Access Point is broadcasting,
+without needing to look at anything.
+
+**Incoming messages still sound and still cancel by keypress.** The keypad/control
+buttons are read over a shift register that's independent of the LCD, so they keep
+working with the screen unplugged. An incoming message plays the usual continuous alert
+melody, and pressing any physical button silences it — exactly like the screen-equipped
+devices. (Only the *visual* UI was removed; the audio-alert + key-to-silence path is
+unchanged.)
+
+---
+
+## How to use it
+
+1. Build & flash this branch to the broken-LCD device (same Arduino IDE / CMake steps
+   as the standard firmware — see [SETUP.md](SETUP.md)).
+2. On boot you'll hear the **rising boot chime** and the serial monitor prints the AP
+   name and URL.
+3. On your phone, join the Wi-Fi network **`Chatter-XXXX`** (XXXX = last 4 hex of the
+   device ID) using the password set in
+   [`src/Services/WebUIService.cpp`](src/Services/WebUIService.cpp).
+   > **Set a password of at least 8 characters** before flashing — WPA2 rejects
+   > shorter ones and the AP won't come up secured.
+4. Browse to **http://192.168.4.1/** — you'll get the friends list, conversations, a
+   compose/send box, a broadcast button, and a pairing flow (scan → tap to pair). The
+   header shows live **battery %, pack voltage, pending sends, connected clients, and
+   uptime** (polled every 10 s). Watching the voltage trend is a handy way to gauge how
+   fast Wi-Fi drains the pack when running on battery backup.
+
+---
+
+## What's intentionally **not** running
+
+- **LVGL / display / theme / keypad input** — there's no screen to draw to.
+- **Sleep & Shutdown services** — their low-battery and sleep paths are tied to the
+  screen (`LVScreen::getCurrent()`, battery notification modals) and would crash with
+  no screen ever created. An always-on Wi-Fi hub shouldn't sleep anyway.
+
+If you intend to run this permanently on USB power **without a battery installed**, note
+that the original boot-time dead-battery guard can deep-sleep the device if the battery
+rail reads ~0 V. That guard is kept as-is on this branch; relax it if your hub has no
+battery.
+
+---
+
+## Files specific to this branch
+
+- [`Chatter-Firmware.ino`](Chatter-Firmware.ino) — headless boot path (no LVGL).
+- [`src/Services/WebUIService.h`](src/Services/WebUIService.h) /
+  [`src/Services/WebUIService.cpp`](src/Services/WebUIService.cpp) — Wi-Fi AP, HTTP API,
+  embedded web page, and the buzzer cue system.
+
+Everything else is the stock firmware, reused unchanged.

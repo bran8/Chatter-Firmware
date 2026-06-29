@@ -1,7 +1,7 @@
 // Headless build for the broken-LCD unit: no LVGL/display, no keypad UI.
 // Boots straight into Storage/LoRa/Message/Profile services + a WiFi AP and
 // web control panel (src/Services/WebUIService.h). Lives only on the
-// headless-wifi branch -- master (and the other 5 devices) is untouched.
+// headless-wifi branch -- master (and the other devices) are untouched.
 #include <Arduino.h>
 #include <CircuitOS.h>
 #include <Chatter.h>

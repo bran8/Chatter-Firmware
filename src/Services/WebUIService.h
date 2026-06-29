@@ -35,6 +35,7 @@ private:
 	void handleBroadcast();
 	void handleMarkRead();
 	void handlePending();
+	void handleStatus();
 	void handleGetProfile();
 	void handleSetProfile();
 	void handlePairStart();
