@@ -1,10 +1,12 @@
 # Chatter 2.0 — Headless Wi-Fi Mode
 
+![A Chatter 2.0 unit running headless with its LCD removed](Chatter_NoLCD.jpg)
+
 This branch (`headless-wifi`) is a special build for a **device whose LCD is
 physically broken**. Instead of scrapping the unit, it boots with **no screen and
 no keypad UI** and is controlled entirely from a phone browser over Wi-Fi.
 
-> **This branch is for one broken device only.** `master` is untouched — the other
+> **This branch is for broken devices** `master` is untouched — the other
 > devices keep building and behaving exactly as before. Build/flash the broken unit
 > from this branch; build everything else from `master`.
 
@@ -84,6 +86,8 @@ unchanged.)
    header shows live **battery %, pack voltage, pending sends, connected clients, and
    uptime** (polled every 10 s). Watching the voltage trend is a handy way to gauge how
    fast Wi-Fi drains the pack when running on battery backup.
+
+NOTE: iPhone users should turn Private Wi-Fi Address to OFF to reduce reconnection negotiation
 
 ### Web UI features
 

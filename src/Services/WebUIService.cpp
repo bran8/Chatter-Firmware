@@ -6,7 +6,9 @@
 #include "BuzzerService.h"
 #include <Audio/Piezo.h>
 #include <Battery/BatteryService.h>
-#include <SPIFFS.h>
+#include <Settings.h>
+#include "SleepService.h"
+#include "AvatarAssets.h"
 
 WebUIService WebUI;
 
@@ -26,6 +28,11 @@ static const uint16_t CueGapMs = 40;
 static const uint8_t BattWarnPct = 25;
 static const uint8_t BattCritPct = 8;
 static const uint8_t BattClearMargin = 5;   // must recover this far above to re-arm
+
+// USB-present detection for the shutdown-on-battery timer. getPercentage()
+// clamps to 100% at 4500mV, so a reading at/above this means the charger is
+// holding the rail up (USB connected); below it we're running on the pack.
+static const uint16_t UsbPresentMv = 4500;
 
 // Change this before flashing -- WPA2 requires at least 8 characters.
 static const char* AP_PASSWORD = "chatterwifi";
@@ -50,7 +57,7 @@ input,button{font-size:1em;padding:6px;margin:4px 0}
 #compose input{flex:1}
 a{color:#8cf}
 .hidden{display:none}
-.friend img,.av{width:34px;height:41px;border-radius:6px;vertical-align:middle;background:#333}
+.friend img,.av{width:42px;height:42px;border-radius:6px;vertical-align:middle;background:#333}
 .frow{display:flex;align-items:center;gap:8px;flex:1;cursor:pointer;min-width:0}
 .frow span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .del{background:#622;color:#fdd;border:none;border-radius:6px;padding:4px 8px;cursor:pointer}
@@ -300,6 +307,12 @@ void WebUIService::begin(){
 	WiFi.mode(WIFI_AP);
 	WiFi.softAP(ssid, AP_PASSWORD);
 
+	// Resolve every hostname to ourselves so phone-OS internet-check probes
+	// (which would otherwise fail against this internet-less AP) land on
+	// handleCaptivePortal() below instead. See the dnsServer comment in the
+	// header for why this matters.
+	dnsServer.start(53, "*", WiFi.softAPIP());
+
 	server.on("/", HTTP_GET, [this](){ handleRoot(); });
 	server.on("/api/friends", HTTP_GET, [this](){ handleFriends(); });
 	server.on("/api/convos", HTTP_GET, [this](){ handleConvos(); });
@@ -320,12 +333,24 @@ void WebUIService::begin(){
 	server.on("/api/pair/confirm", HTTP_POST, [this](){ handlePairConfirm(); });
 	server.on("/api/pair/status", HTTP_GET, [this](){ handlePairStatus(); });
 	server.on("/api/pair/cancel", HTTP_POST, [this](){ handlePairCancel(); });
+
+	// Known OS internet-connectivity-check paths -- redirect them to "/" so
+	// the resulting "sign in to network" prompt (Android) or captive-portal
+	// popup (iOS/macOS) opens straight into the Chatter UI.
+	server.on("/generate_204", HTTP_GET, [this](){ handleCaptivePortal(); });        // Android
+	server.on("/gen_204", HTTP_GET, [this](){ handleCaptivePortal(); });             // Android (older)
+	server.on("/hotspot-detect.html", HTTP_GET, [this](){ handleCaptivePortal(); }); // iOS/macOS
+	server.on("/library/test/success.html", HTTP_GET, [this](){ handleCaptivePortal(); }); // iOS/macOS (older)
+	server.on("/ncsi.txt", HTTP_GET, [this](){ handleCaptivePortal(); });            // Windows
+	server.on("/connecttest.txt", HTTP_GET, [this](){ handleCaptivePortal(); });     // Windows
+
 	server.onNotFound([this](){ handleNotFound(); });
 
 	server.begin();
 	LoopManager::addListener(this);
 
 	lastStationNum = WiFi.softAPgetStationNum();
+	touchActivity();   // start the shutdown-on-battery idle timer from boot
 
 	// Audible "I booted and the AP is up" -- the only boot indicator with no LCD.
 	playCue(BootCue, sizeof(BootCue) / sizeof(BootCue[0]));
@@ -335,6 +360,7 @@ void WebUIService::begin(){
 
 void WebUIService::loop(uint micros){
 	server.handleClient();
+	dnsServer.processNextRequest();
 
 	// Check the AP client count a couple of times a second -- no need to query
 	// the WiFi driver on every loop tick.
@@ -377,6 +403,32 @@ void WebUIService::pollBattery(){
 	}else if(pct > BattWarnPct + BattClearMargin){
 		lowBattery = false;   // recovered (e.g. USB power restored, pack charging)
 	}
+
+	// Shutdown-on-battery: this unit normally lives on USB with the pack as
+	// backup. When USB drops (power outage), don't drain the pack indefinitely
+	// running the AP for nobody -- power off after the configured idle time.
+	// On USB we treat every poll as activity so the deadline never arrives;
+	// active web use (see touchActivity()) likewise defers it. We never cut
+	// power with messages still queued for delivery.
+	//
+	// Note: turnOff() is a true deep-sleep power-down -- only the physical
+	// button wakes it. There's no USB-detect pin to auto-wake on power return,
+	// so if an outage outlasts shutdownTime the unit stays off until pressed.
+	uint32_t shutdownSecs = ShutdownSeconds[Settings.get().shutdownTime];
+	if(Battery.getVoltage() >= UsbPresentMv){
+		touchActivity();                 // on USB == not idle
+	}else if(shutdownSecs != 0 && Messages.pendingCount() == 0){
+		if(millis() - lastWebActivity >= shutdownSecs * 1000UL){
+			Sleep.turnOff();
+		}
+	}
+}
+
+// Mark "the web UI is being used right now" -- defers the shutdown-on-battery
+// timer. Called from the page's status heartbeat and from user actions, so an
+// open/active page keeps the unit alive even on battery.
+void WebUIService::touchActivity(){
+	lastWebActivity = millis();
 }
 
 void WebUIService::pollStations(){
@@ -503,6 +555,7 @@ void WebUIService::handleSendMessage(){
 		return;
 	}
 
+	touchActivity();
 	Message msg = Messages.sendText(convo, text.c_str());
 	server.send(200, "application/json", String("{\"ok\":") + (msg.uid != 0 ? "true" : "false") + "}");
 }
@@ -514,6 +567,7 @@ void WebUIService::handleBroadcast(){
 		return;
 	}
 
+	touchActivity();
 	int count = Messages.broadcastText(text.c_str());
 	server.send(200, "application/json", "{\"ok\":true,\"count\":" + String(count) + "}");
 }
@@ -529,6 +583,10 @@ void WebUIService::handlePending(){
 }
 
 void WebUIService::handleStatus(){
+	// The page polls this every 10s while open, so it doubles as the "UI is in
+	// use" heartbeat that holds off the shutdown-on-battery timer.
+	touchActivity();
+
 	// One poll for the header: battery, link, and health. Watching mV over time
 	// is also a handy way to gauge how fast Wi-Fi drains the pack on backup power.
 	String json = "{";
@@ -640,12 +698,13 @@ void WebUIService::handleDeleteMessage(){
 	server.send(200, "application/json", String("{\"ok\":") + (ok ? "true" : "false") + "}");
 }
 
-// Serve one built-in avatar (index 0-14) as a BMP the browser can render.
-// Pre-converted offline (see data/Avatars/large/bin2bmp.py) from the LVGL
-// LV_IMG_CF_INDEXED_8BIT source asset, so this is a plain static file send --
-// no on-device decode. The original on-the-fly transcode (palette lookup +
-// blend per pixel, per request) was heavy enough to crash the unit after a
-// handful of avatar requests; pre-baked BMPs avoid that entirely.
+// Serve one built-in avatar (index 0-14) as a PNG, straight from flash. The
+// images are embedded in the firmware (src/Services/AvatarAssets.h, generated
+// by data/Avatars/large/png2c.py) rather than read from SPIFFS, so getting
+// avatars onto the device is just a normal sketch upload -- no separate SPIFFS
+// data flash (which IDE 2.x can't do for this board and which kept landing the
+// image at the wrong partition offset). PNG keeps the avatars' transparent
+// corners so they composite cleanly over the page background.
 void WebUIService::handleAvatar(){
 	int idx = server.arg("i").toInt();
 	if(idx < 0 || idx > 14){
@@ -653,20 +712,40 @@ void WebUIService::handleAvatar(){
 		return;
 	}
 
-	char path[40];
-	snprintf(path, sizeof(path), "/Avatars/large/%d.bmp", idx + 1);
-	File f = SPIFFS.open(path, "r");
-	if(!f){
-		server.send(404, "text/plain", "avatar not found");
-		return;
-	}
-
-	server.streamFile(f, "image/bmp");
-	f.close();
+	server.send_P(200, "image/png", (PGM_P) AvatarPng[idx], AvatarPngLen[idx]);
 }
 
+// With the DNS catch-all resolving every host to us, anything we don't have an
+// explicit route for is almost certainly an OS captive-portal probe or a
+// browser poking at a random host -- send it all to the portal page so the
+// network gets recognized as a captive portal instead of "no internet".
 void WebUIService::handleNotFound(){
-	server.send(404, "application/json", "{\"error\":\"not found\"}");
+	redirectToPortal();
+}
+
+// Hit by the OS's own internet-connectivity probe (Android/iOS/Windows all
+// have one), which dnsServer routes here by resolving the probe's hostname to
+// us. Redirecting -- rather than answering the probe's expected "everything's
+// fine" body -- is what makes the OS treat this as a captive portal and pop
+// its sign-in UI onto our page, instead of deciding there's "no internet" and
+// deprioritizing/dropping the connection.
+void WebUIService::handleCaptivePortal(){
+	redirectToPortal();
+}
+
+// Redirect to the ABSOLUTE gateway URL (http://192.168.4.1/), not a relative
+// "/". Windows' captive-portal assistant resolves the Location against the
+// probe's hostname (www.msftconnecttest.com), so a relative path can send it
+// back to a Microsoft host instead of to us; the absolute IP URL pins it to
+// the device. (Note: we only serve HTTP/80 -- if the OS insists on HTTPS the
+// auto-popup can still fail, in which case browsing to http://192.168.4.1
+// by hand always works.)
+void WebUIService::redirectToPortal(){
+	String url = "http://" + WiFi.softAPIP().toString() + "/";
+	server.sendHeader("Location", url, true);
+	server.send(302, "text/html",
+		"<!DOCTYPE html><meta http-equiv=refresh content=\"0;url=" + url + "\">"
+		"<a href=\"" + url + "\">Open Chatter</a>");
 }
 
 void WebUIService::onPairDone(bool success, void* ctx){

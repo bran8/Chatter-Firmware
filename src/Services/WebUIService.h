@@ -4,6 +4,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WebServer.h>
+#include <DNSServer.h>
 #include <Loop/LoopListener.h>
 #include "Pair/PairService.h"
 
@@ -23,6 +24,16 @@ public:
 
 private:
 	WebServer server{80};
+	// This AP has no internet uplink, which makes phone OSes (Android and iOS
+	// both) treat it as broken: they probe a known URL to check for real
+	// internet, the probe fails, and they either nag the user to confirm
+	// "stay connected?" or silently stop routing app traffic over this Wi-Fi --
+	// which looks exactly like "can't get back to the homepage" after a brief
+	// disconnect/reconnect. Resolving every hostname to our own IP (below) lets
+	// those probe requests land on handleCaptivePortal() instead of failing,
+	// so the OS recognizes this as a normal captive-portal network and keeps
+	// the connection usable.
+	DNSServer dnsServer;
 	PairService* pairService = nullptr;
 	bool pairResultReady = false;
 	bool pairResultSuccess = false;
@@ -48,6 +59,8 @@ private:
 	void handlePairStatus();
 	void handlePairCancel();
 	void handleNotFound();
+	void handleCaptivePortal();   // OS internet-check probes -> the portal page
+	void redirectToPortal();      // 302 to the absolute gateway URL
 
 	static void onPairDone(bool success, void* ctx);
 
@@ -83,6 +96,14 @@ private:
 	uint32_t batteryPollTimer = 0;
 	bool lowBattery = false;               // <= warn threshold (shown on web)
 	bool criticalBattery = false;          // <= critical threshold
+
+	// --- Shutdown-on-battery ----------------------------------------------
+	// When USB power is lost the unit runs on its backup pack; rather than
+	// draining it forever serving an idle AP, power off after the configured
+	// shutdown time (Settings shutdownTime) of inactivity. The timer is
+	// deferred while on USB or while the web UI is being used; see pollBattery().
+	void touchActivity();                  // reset the idle timer ("UI in use")
+	uint32_t lastWebActivity = 0;          // millis() of last activity / USB-present poll
 };
 
 extern WebUIService WebUI;
