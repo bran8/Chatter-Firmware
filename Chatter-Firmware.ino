@@ -113,22 +113,27 @@ void printData(){
 }
 
 void boot(){
+	printf("[BOOT] boot() entered — drawing splash\n"); Serial.flush();
 	lv_timer_handler();
 
 	display->getBaseSprite()->drawIcon(SPIFFS.open("/splash.raw"), 0, 0, 160, 128);
 	display->commit();
+	printf("[BOOT] splash committed\n"); Serial.flush();
 
 	Chatter.fadeIn();
 
 	FSLVGL::loadCache();
+	printf("[BOOT] FSLVGL cache loaded\n"); Serial.flush();
 
-	Storage.begin();
+	Storage.begin();      printf("[BOOT] Storage.begin() ok\n"); Serial.flush();
 	CustomDict.begin();   // load learned words before any message is processed
+	printf("[BOOT] CustomDict.begin() ok\n"); Serial.flush();
 	Canned.begin();       // load persisted canned messages (seeds defaults first boot)
-	Messages.begin();
+	printf("[BOOT] Canned.begin() ok\n"); Serial.flush();
+	Messages.begin();     printf("[BOOT] Messages.begin() ok\n"); Serial.flush();
 
-	LoRa.begin();
-	Profiles.begin();
+	LoRa.begin();         printf("[BOOT] LoRa.begin() ok (915 MHz)\n"); Serial.flush();
+	Profiles.begin();     printf("[BOOT] Profiles.begin() ok\n"); Serial.flush();
 
 	//loadMock(true);
 	//printData();
@@ -139,7 +144,7 @@ void boot(){
 		Settings.store();
 	}
 
-	Sleep.begin();
+	Sleep.begin();        printf("[BOOT] Sleep.begin() ok\n"); Serial.flush();
 
 
 	auto intro = new IntroScreen([](){
@@ -150,6 +155,7 @@ void boot(){
 	lv_timer_handler();
 
 	intro->start();
+	printf("[BOOT] IntroScreen started — handing off to main loop\n"); Serial.flush();
 }
 
 bool checkJig(){
@@ -193,27 +199,45 @@ void initLog(){
 
 void setup(){
 	Serial.begin(115200);
+	delay(300);   // give the USB serial monitor time to attach so early lines aren't lost
+
+	printf("\n\n[BOOT] ===== POST: setup() entered =====\n");
+	printf("[BOOT] Chip UID: 0x%llx | HWRevision: %d\n", ESP.getEfuseMac(), HWRevision::get());
+	printf("[BOOT] BATTERY_PIN = GPIO %d\n", BATTERY_PIN);
+	Serial.flush();
 
 	randomSeed(analogRead(BATTERY_PIN) * 13 + analogRead(BATTERY_PIN) * 7 + 2);
 
 	LoopManager::reserve(24);
 
+	printf("[BOOT] Chatter.begin() ...\n"); Serial.flush();
 	Chatter.begin(false);
 	display = Chatter.getDisplay();
+	printf("[BOOT] Chatter.begin() done | display=%p\n", (void*) display); Serial.flush();
 
 	initLog();
 
+	printf("[BOOT] checkJig() (500ms window for 'JIGTEST') ...\n"); Serial.flush();
 	if(checkJig()){
-		printf("Jig\n");
+		printf("[BOOT] JIG MODE entered — running JigHWTest, will not boot normally\n"); Serial.flush();
 		auto test = new JigHWTest(display);
 		Chatter.fadeIn();
 		test->start();
 		for(;;);
 	}else{
-		printf("\n");
+		printf("[BOOT] No jig — continuing normal boot\n");
 	}
 
-	if(Battery.getPercentage() == 0){
+	// Dead-battery guard. Reads BATTERY_PIN (GPIO 36 on this rev-1 board).
+	// If running on USB with no/flat battery, this reads ~0% and turns the device
+	// off BEFORE the splash is ever drawn -> totally blank screen.
+	uint8_t battPct = Battery.getPercentage();
+	uint16_t battMv = Battery.getVoltage();
+	printf("[BOOT] Battery check: %u%% (%u mV) on GPIO %d\n", battPct, battMv, BATTERY_PIN); Serial.flush();
+	if(battPct == 0){
+		printf("[BOOT] *** DEAD-BATTERY GUARD FIRING -> Sleep.turnOff() -> blank screen ***\n");
+		printf("[BOOT] *** If the device is on USB power, this is a false trip. ***\n");
+		Serial.flush();
 		LoRa.initStateless();
 		Sleep.turnOff();
 		for(;;);
