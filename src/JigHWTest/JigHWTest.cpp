@@ -1,4 +1,4 @@
-#include <LittleFS.h>
+#include <LITTLEFS.h>
 #include <Battery/BatteryService.h>
 #include <TypeDef.h>
 #include <modules/LLCC68/LLCC68.h>
@@ -208,12 +208,12 @@ bool JigHWTest::BatteryCheck(){
 
 bool JigHWTest::LittleFSTest(){
 	for(const auto& f : SPIFFSChecksums){
-		if(!LittleFS.exists(f.name)){
+		if(!LITTLEFS.exists(f.name)){
 			test->log("missing", f.name);
 			return false;
 		}
 
-		fs::File file = LittleFS.open(f.name, "r");
+		fs::File file = LITTLEFS.open(f.name, "r");
 		uint32_t sum = calcChecksum(file);
 		file.close();
 

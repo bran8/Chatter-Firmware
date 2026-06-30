@@ -1,7 +1,7 @@
 #include "GamesScreen.h"
 #include <Pins.hpp>
 #include <Chatter.h>
-#include <LittleFS.h>
+#include <LITTLEFS.h>
 #include "../Model/Profile.hpp"
 #include "../Fonts/font.h"
 #include "../Types.hpp"
@@ -52,7 +52,7 @@ GamesScreen::GamesScreen() : LVScreen(), apop(this){
 				uint32_t splashStart = 0;
 				if(info.splash){
 					auto display = Chatter.getDisplay();
-					display->getBaseSprite()->drawIcon(LittleFS.open(info.splash), 0, 0, 160, 128);
+					display->getBaseSprite()->drawIcon(LITTLEFS.open(info.splash), 0, 0, 160, 128);
 					display->commit();
 					splashStart = millis();
 				}

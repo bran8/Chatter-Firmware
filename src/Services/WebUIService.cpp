@@ -8,7 +8,7 @@
 #include <Battery/BatteryService.h>
 #include <Settings.h>
 #include "SleepService.h"
-#include <LittleFS.h>
+#include <LITTLEFS.h>
 
 WebUIService WebUI;
 
@@ -850,7 +850,7 @@ void WebUIService::handleAvatar(){
 		return;
 	}
 	String path = "/Avatars/large/" + String(idx + 1) + ".png";
-	File f = LittleFS.open(path, "r");
+	File f = LITTLEFS.open(path, "r");
 	if(!f){
 		server.send(404, "text/plain", "avatar not on flash");
 		return;
@@ -866,7 +866,7 @@ void WebUIService::handlePic(){
 		return;
 	}
 	String path = "/Pics/" + String(idx) + ".png";
-	File f = LittleFS.open(path, "r");
+	File f = LITTLEFS.open(path, "r");
 	if(!f){
 		server.send(404, "text/plain", "pic not on flash");
 		return;

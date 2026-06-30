@@ -38,7 +38,7 @@ include_directories(${Arduino15}/packages/cm/hardware/esp32/1.7.5/libraries/FS/s
 include_directories(${Arduino15}/packages/cm/hardware/esp32/1.7.5/libraries/SD/src)
 include_directories(${Arduino15}/packages/cm/hardware/esp32/1.7.5/libraries/SPI/src)
 include_directories(${Arduino15}/packages/cm/hardware/esp32/1.7.5/libraries/WiFi/src)
-include_directories(${Arduino15}/packages/cm/hardware/esp32/1.7.5/libraries/LittleFS/src)
+include_directories(${ArduinoLibs}/LITTLEFS/src)
 include_directories(${Arduino15}/packages/cm/hardware/esp32/1.7.5/libraries/CircuitOS/src)
 include_directories(${Arduino15}/packages/cm/hardware/esp32/1.7.5/libraries/JPEGDecoder/src)
 include_directories(${Arduino15}/packages/cm/hardware/esp32/1.7.5/libraries/OpenCV-ESP32/src)

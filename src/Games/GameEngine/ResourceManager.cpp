@@ -1,5 +1,5 @@
 #include "ResourceManager.h"
-#include <LittleFS.h>
+#include <LITTLEFS.h>
 #include <FS/CompressedFile.h>
 #include <FS/RamFile.h>
 
@@ -29,7 +29,7 @@ void ResourceManager::load(const std::vector<ResDescriptor>& descriptors){
 
 		auto cPath = path.c_str();
 
-		File original = LittleFS.open(cPath);
+		File original = LITTLEFS.open(cPath);
 		if(!original){
 			ESP_LOGE("ResMan", "Failed to load resource %s", cPath);
 			continue;

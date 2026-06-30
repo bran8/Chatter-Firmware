@@ -1,4 +1,4 @@
-#include <LittleFS.h>
+#include <LITTLEFS.h>
 #include <FS/RamFile.h>
 #include "Repo.h"
 #include "../Model/Message.h"
@@ -17,9 +17,9 @@ Repo<T>::Repo(const char* directory, size_t reserve) : directory(directory){
 
 template<typename T>
 void Repo<T>::begin(bool cached){
-	File dir = LittleFS.open(directory);
+	File dir = LITTLEFS.open(directory);
 	if(!dir){
-		LittleFS.mkdir(directory);
+		LITTLEFS.mkdir(directory);
 	}else if(!dir.isDirectory()){
 		printf("Specified repo directory is a file: %s\n", directory);
 	}
@@ -45,20 +45,20 @@ bool Repo<T>::add(const T& object){
 	if(cached && cache.find(object.uid) != cache.end()) return false;
 
 	const String path = getPath(object.uid);
-	if(!cached && LittleFS.exists(path)) return false;
+	if(!cached && LITTLEFS.exists(path)) return false;
 
-	File file = LittleFS.open(path, FILE_WRITE);
+	File file = LITTLEFS.open(path, FILE_WRITE);
 	if(!file) return false;
 
 	if(!write(file, object)){
 		file.close();
-		LittleFS.remove(path);
+		LITTLEFS.remove(path);
 		return false;
 	}
 
 	if(cached){
 		file.close();
-		file = LittleFS.open(path);
+		file = LITTLEFS.open(path);
 		cache.insert(std::make_pair(object.uid, RamFile::open(file, false)));
 	}
 
@@ -77,10 +77,10 @@ bool Repo<T>::remove(UID_t uid){
 	if(cached && cache.find(uid) == cache.end()) return false;
 
 	const String path = getPath(uid);
-	if(!cached && !LittleFS.exists(path)) return false;
+	if(!cached && !LITTLEFS.exists(path)) return false;
 
 	cache.erase(uid);
-	return LittleFS.remove(path);
+	return LITTLEFS.remove(path);
 }
 
 template<typename T>
@@ -94,7 +94,7 @@ T Repo<T>::get(UID_t uid, bool bypassCache){
 		file.seek(0);
 	}else{
 		const String path = getPath(uid);
-		file = LittleFS.open(path);
+		file = LITTLEFS.open(path);
 		if(!file) return { };
 	}
 
@@ -129,7 +129,7 @@ std::vector<UID_t> Repo<T>::all(bool bypassCache){
 		return list;
 	}
 
-	File root = LittleFS.open(directory);
+	File root = LITTLEFS.open(directory);
 	if(!root || !root.isDirectory()){
 		root.close();
 		return { };
@@ -160,7 +160,7 @@ std::vector<UID_t> Repo<T>::all(bool bypassCache){
 template<typename T>
 bool Repo<T>::exists(UID_t uid){
 	if(cached) return cache.find(uid) != cache.end();
-	return LittleFS.exists(getPath(uid));
+	return LITTLEFS.exists(getPath(uid));
 }
 
 template<typename T>
