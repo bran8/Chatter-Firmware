@@ -14,14 +14,13 @@ no keypad UI** and is controlled entirely from a phone browser over Wi-Fi.
 
 This firmware is configured for the **Chatter 2.0 Green** edition hardware:
 
-| Parameter            | Value                  | Notes                                                |
-| -------------------- | ---------------------- | ---------------------------------------------------- |
-| **Frequency**        | **868 MHz**            | EU ISM band (CE); matches this device's radio module |
-| **Bandwidth**        | 500 kHz                |                                                      |
-| **Spreading Factor** | 9                      |                                                      |
-| **Coding Rate**      | 4/5                    |                                                      |
-| **TX Power**         | 22 dBm                 |                                                      |
-| **Radio chip**       | LLCC68 (SX1262 family) |                                                      |
+| Parameter            | Value       | Notes                                                |
+| -------------------- | ----------- | ---------------------------------------------------- |
+| **Frequency**        | **868 MHz** | EU ISM band (CE); matches this device's radio module |
+| **Bandwidth**        | 500 kHz     |                                                      |
+| **Spreading Factor** | 9           |                                                      |
+| **Coding Rate**      | 4/5         |                                                      |
+| **TX Power**         | 22 dBm      |                                                      |
 
 > ⚠️ This device's radio is an **868 MHz** (EU/CE band) part. If you build for a
 > US/915 MHz unit, change `LoRaService.cpp:begin()` to 915 MHz.
@@ -62,7 +61,7 @@ Removing the dead panel is optional, but it's safe — and it saves a little pow
 
 ---
 
-## Sound is the indicator (works great)
+## Sound is the indicator
 
 With no screen, the **buzzer is the only feedback channel**, so the build chirps short
 non-blocking melodies for the events that matter:
@@ -80,10 +79,7 @@ without needing to look at anything.
 
 **Incoming messages still sound and still cancel by keypress.** The keypad/control
 buttons are read over a shift register that's independent of the LCD, so they keep
-working with the screen unplugged. An incoming message plays the usual continuous alert
-melody, and pressing any physical button silences it — exactly like the screen-equipped
-devices. (Only the *visual* UI was removed; the audio-alert + key-to-silence path is
-unchanged.)
+working with the screen unplugged. A silence link is used on the web browser to acknowledge the alerts.
 
 ---
 
@@ -96,7 +92,7 @@ unchanged.)
    name and URL.
 
 3. On your phone, join the Wi-Fi network **`Chatter-XXXX`** (XXXX = last 4 hex of the
-   device ID) using the password set in
+   device ID) using the default password (chatterwifi) set in:
    [`src/Services/WebUIService.cpp`](src/Services/WebUIService.cpp).
    
    > **Set a password of at least 8 characters** before flashing — WPA2 rejects
@@ -108,7 +104,7 @@ unchanged.)
    uptime** (polled every 10 s). Watching the voltage trend is a handy way to gauge how
    fast Wi-Fi drains the pack when running on battery backup.
 
-NOTE: iPhone users should turn Private Wi-Fi Address to OFF to reduce reconnection negotiation
+NOTE: iPhone users should turn Private Wi-Fi Address to OFF to reduce reconnection negotiation.  Also, Brave browser doesnt work for me.
 
 > ⚠️ **Turn off your VPN first.** If a VPN is active on the phone, it tunnels
 > *all* traffic — including the request to `192.168.4.1` — out through the VPN
@@ -119,7 +115,7 @@ NOTE: iPhone users should turn Private Wi-Fi Address to OFF to reduce reconnecti
 ### Web UI features
 
 - **Friends & conversations** — avatar thumbnail, name, and last message per friend;
-  tap to open the thread, compose, send, broadcast all.
+  tap to open the thread, compose, send, and broadcast all.
 - **My profile** (`me` link) — edit your **name**, pick from the 15 built-in **avatars**
 - **Silence** (`silence` link) — stop an in-progress incoming-message alert from the
   phone, without walking over to press a key.
@@ -129,6 +125,7 @@ NOTE: iPhone users should turn Private Wi-Fi Address to OFF to reduce reconnecti
   state from the battery gauge: if the charge falls past a threshold (it never does on
   USB power), it sounds a distinctive **falling cue** and shows an **"ON BATTERY"**
   banner — your signal that USB power was lost and the backup pack is draining.
+- **Send Memes**
 
 ---
 
@@ -195,6 +192,8 @@ python tools/build_littlefs.py data littlefs.bin
 > The harmless `SPIFFS failed` line early in the boot log comes from the CircuitMess
 > library and can be ignored — this firmware uses LittleFS for everything and NVS for
 > settings.
+> 
+> 
 
 Full partition table and rationale are in **[SETUP.md](SETUP.md)**.
 
@@ -206,8 +205,6 @@ Full partition table and rationale are in **[SETUP.md](SETUP.md)**.
 
 The control panel served from the device at **http://192.168.4.1/** — friends,
 conversations, compose/send, broadcast, pairing, and the live status header.
-
-
 
 Note: Brave on iOS doesnt work for me, I cant interact with the popup messages
 

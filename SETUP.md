@@ -5,12 +5,12 @@ This fork adds my custom tweaks for Chatter 2.0.  Agentic Engineering assisted, 
 **Key improvements:**
 
 - **Connect to Chatter over WiFi** - use your phone
+
 - **Broadcast to all friends** – send one message that goes to all your friends
 
 - **Retry until Ack** – all sends are retried until acknowledged by receiver (Go to Settings to clear the sending queue to clear the airwaves)
+
 - **Incoming Annoyance** – incoming messages are important, play sound continuiously until silenced
-
-
 
 Detailed Setup that worked for me: 
 
@@ -30,15 +30,15 @@ Then on the Select Board pull-down selector, you can find the "Boards" called: *
 
 On my system, it connected to COM4 Serial Port (USB)
 
+Click Tools -> Manage Libraries...
+
+Search for "LittleFS_esp32 by lorol"...  Pick version 1.0.6 and install...
+
 Click File->Open-> **Chatter-Firmware.ino**
 
 Click the "Checkmark" to verify.  It will "Compiling sketch..." for a few minutes.
 
-I get a conflict error with overlapping candidates; void Sprite::pushImage and void lgfx::v1::LGFXBase::pushImage.  It does not stop me from Uploading the sketch to the device successfully.
-
-
-
-Next, you need to upload the **data** to the flash, you may use the included littlefs.bin for convenience or read further below to create your own.
+Next, you need to upload the **data** to the flash, you may use the included `littlefs.bin` for convenience or read further below to create your own.
 
 Download the esptool https://github.com/espressif/esptool/releases 
 
@@ -46,94 +46,17 @@ Download the esptool https://github.com/espressif/esptool/releases
 esptool --chip esp32 --baud 921600  --before default_reset --after hard_reset write_flash -z --flash_mode dio --flash_freq 80m --flash_size detect 0x211000 littlefs.bin
 ```
 
-
-
-
-
-
-
 If you need to factory restore the device, login to https://code.circuitmess.com/ and click on Restore Firmware in the top-right corner. 
-
-
-
-
 
 ## Serial Monitor
 
 Set Baud to 115200
-
-# Chatter Firmware
-
-> The repository for the core firmware that comes preloaded on every Chatter.
-
-Put together and code two encrypted wireless communicators.
-
-# Compiling
-
-The firmware is based on the [Chatter Library](https://github.com/CircuitMess/Chatter-Library).
-
-The library is included with other device libraries in the CircuitMess ESP32 Arduino platform.
-
-More info and installation instructions
-on [CircuitMess/Arduino-Packages](https://github.com/CircuitMess/Arduino-Packages).
-
-## Using Arduino IDE
-
-### Installing the package
-
-Follow the package installation
-instructions [here](https://github.com/CircuitMess/Arduino-Packages?tab=readme-ov-file#installation).
-
-### Building
-
-Open Chatter-Firmware.ino using Arduino IDE, set the board to Chatter, and compile.
-
-## Using CMake
-
-To compile and upload, you need to have [CMake](https://cmake.org/)
-and [arduino-cli](https://github.com/arduino/arduino-cli) installed. You also need to have both of
-them registered in the PATH.
-
-In the CMakeLists.txt file, change the port to your desired COM port (default is /dev/ttyUSB0):
-
-```
-set(PORT /dev/ttyUSB0)
-```
-
-Then in the root directory of the repository type:
-
-```
-mkdir cmake
-cd cmake
-cmake ..
-cmake --build . --target CMBuild
-```
-
-This will compile the binaries and place the .bin and .elf files in the build/ directory located in
-the root of the repository.
-
-To compile the binary and upload it according to the port set in CMakeLists.txt, run
-
-```
-cmake --build . --target CMBuild
-```
-
-in the cmake directory.
 
 # Uploading the LittleFS image
 
 The ESP32 stores UI and audio assets in a LittleFS partition (this fork migrated off
 SPIFFS for better flash wear leveling). The image is built from `data/` and flashed
 separately from the firmware.
-
-## Using the Arduino ESP32 filesystem uploader plugin (only for Arduino 1.X)
-
-Install the [plugin](https://github.com/me-no-dev/arduino-esp32fs-plugin) following the instructions
-from
-the [README.md](https://github.com/me-no-dev/arduino-esp32fs-plugin?tab=readme-ov-file#installation)
-
-Then from the opened sketch select Tools > ESP32 Sketch Data Upload menu item. This should start
-uploading the files into ESP32 flash filesystem.
 
 ## Partition scheme (read this first)
 
