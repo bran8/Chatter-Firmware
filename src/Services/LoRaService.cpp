@@ -455,7 +455,7 @@ void LoRaService::send(UID_t receiver, LoRaPacket::Type type, const Packet* cont
 		encKeyMutex.lock();
 		if(encKeyMap.find(receiver) == encKeyMap.end()){
 			encKeyMutex.unlock();
-			printf("Recipient not found: %lu\n", receiver);
+			printf("Recipient not found: 0x%016llx\n", (unsigned long long) receiver);
 			free(packet.content);
 			return;
 		}
@@ -563,9 +563,15 @@ void LoRaService::copyEncKeys(){
 	}
 
 	hashmapMutex.lock();
-	for(auto &user : hashMap){
-		if(encKeyMap.find(user.first) == encKeyMap.end()){
-			hashMap.erase(user.first);
+	// Erase entries for users that are no longer friends. Must advance the
+	// iterator via erase()'s return value -- erasing during a range-based for
+	// invalidates the loop's iterator (UB), which previously corrupted the map
+	// and surfaced as profile sends to garbage UIDs ("Recipient not found").
+	for(auto it = hashMap.begin(); it != hashMap.end(); ){
+		if(encKeyMap.find(it->first) == encKeyMap.end()){
+			it = hashMap.erase(it);
+		}else{
+			++it;
 		}
 	}
 	hashmapMutex.unlock();

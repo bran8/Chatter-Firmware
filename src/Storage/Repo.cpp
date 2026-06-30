@@ -17,6 +17,17 @@ Repo<T>::Repo(const char* directory, size_t reserve) : directory(directory){
 
 template<typename T>
 void Repo<T>::begin(bool cached){
+	// LittleFS mkdir is NOT recursive -- creating "/Repo/Friends" fails unless
+	// "/Repo" already exists. (The old SPIFFS was a flat filesystem that ignored
+	// directories, so this path "just worked" before the LittleFS migration.)
+	// Walk the path and create each component in turn.
+	for(unsigned int i = 1; i < directory.length(); i++){
+		if(directory[i] == '/'){
+			String parent = directory.substring(0, i);
+			if(!LITTLEFS.exists(parent)) LITTLEFS.mkdir(parent);
+		}
+	}
+
 	File dir = LITTLEFS.open(directory);
 	if(!dir){
 		LITTLEFS.mkdir(directory);

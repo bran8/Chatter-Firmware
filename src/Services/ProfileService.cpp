@@ -112,6 +112,7 @@ void ProfileService::checkHashes(){
 			sendRequest(pair.first);
 		}
 	}
+	delete hashmap;   // getHashmapCopy() returns a heap-allocated copy we own
 
 }
 
