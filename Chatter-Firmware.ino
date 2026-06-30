@@ -65,7 +65,18 @@ void setup(){
 
 	Chatter.begin(false);
 
-	LITTLEFS.begin(true);
+	// formatOnFail=false: if the mount fails we want to SEE it on serial, not
+	// silently format a blank FS (which wipes uploaded assets + the profile and
+	// makes every boot look "fresh"). A mount failure almost always means the
+	// firmware's partition scheme doesn't match where littlefs.bin was flashed
+	// (No OTA = spiffs @ 0x211000; default = spiffs @ 0x291000).
+	if(!LITTLEFS.begin(false)){
+		printf("LittleFS mount FAILED -- check partition scheme matches the "
+			   "littlefs.bin flash address (No OTA => 0x211000).\n");
+	}else{
+		printf("LittleFS mounted: %u / %u bytes used\n",
+			   (unsigned)LITTLEFS.usedBytes(), (unsigned)LITTLEFS.totalBytes());
+	}
 
 	initLog();
 	printf("\n");

@@ -53,10 +53,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    - Click Upload (arrow) to flash to device
    - Note: There's a known conflict warning about `Sprite::pushImage` — does not prevent upload
 
-3. **Upload LittleFS assets** (Arduino 2.X):
-   
-   - Use `mklittlefs` utility to build LittleFS image: `mklittlefs -c data -s 0x1EF000 -b 4096 -p 256 littlefs.bin`
+3. **Select partition scheme**: Tools → Partition Scheme → **"No OTA"** (LittleFS lives at
+   `0x211000` in this scheme; the default scheme puts it at `0x291000` and the image below
+   would not be mounted). Flash the firmware with this selected.
+
+4. **Upload LittleFS assets** (Arduino 2.X):
+
+   - **Do NOT use Arduino's `mklittlefs`** — it writes disk version 2.1 / name_max 255, which
+     the on-device `LittleFS_esp32` library (lfs v2.4, disk 2.0, name_max 64) cannot mount.
+     The firmware then formats a blank FS each boot (broken images, profile resets).
+   - Build the image with the bundled script (pins disk v2.0 + name_max 64):
+     `python tools/build_littlefs.py data littlefs.bin` (`pip install littlefs-python` once)
    - Upload with esptool: `esptool --chip esp32 --baud 921600 write_flash -z 0x211000 littlefs.bin`
+   - See `SETUP.md` for the full partition table and rationale.
 
 ### Using CMake (Windows/Linux/macOS)
 

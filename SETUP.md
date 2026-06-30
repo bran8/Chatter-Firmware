@@ -103,12 +103,11 @@ cmake --build . --target CMBuild
 
 in the cmake directory.
 
-# Uploading SPIFFS
+# Uploading the LittleFS image
 
-The ESP32 contains a Serial Peripheral Interface Flash File System (SPIFFS). SPIFFS is a
-lightweight filesystem created for microcontrollers with a flash chip.
-
-Here are stored UI and audio assets used in the firmware.
+The ESP32 stores UI and audio assets in a LittleFS partition (this fork migrated off
+SPIFFS for better flash wear leveling). The image is built from `data/` and flashed
+separately from the firmware.
 
 ## Using the Arduino ESP32 filesystem uploader plugin (only for Arduino 1.X)
 
@@ -119,25 +118,41 @@ the [README.md](https://github.com/me-no-dev/arduino-esp32fs-plugin?tab=readme-o
 Then from the opened sketch select Tools > ESP32 Sketch Data Upload menu item. This should start
 uploading the files into ESP32 flash filesystem.
 
-## Using the mklittlefs utility
+## Partition scheme (read this first)
 
-When building with CMake or Arduino 2.X, you will need to build and upload the LittleFS image
-separately.
+The firmware mounts LittleFS at a partition whose address depends on the **Partition
+Scheme** selected when you compile, and the image **must be flashed to that same address**:
 
-First, download the latest [mklittlefs](https://github.com/earlephilhower/mklittlefs/releases) utility for your OS.
+| Scheme (Tools > Partition Scheme) | LittleFS offset | LittleFS size |
+|---|---|---|
+| **No OTA** (use this build)       | **0x211000**    | **0x1EF000**  |
+| Default (chatter2 default)        | 0x291000        | 0x16F000      |
 
-Then create the binary LittleFS image using the command in the root of the project:
+Select **Tools > Partition Scheme > "No OTA"** before flashing the firmware so the
+running app mounts LittleFS at `0x211000`, matching the flash address below. If the
+firmware and the image disagree on the address, the mount fails and the firmware
+formats a blank filesystem on every boot (broken images, profile resets each boot).
+
+## Building the LittleFS image (use build_littlefs.py, NOT mklittlefs)
+
+> **Do not use the Arduino-bundled `mklittlefs`.** Version 4.1.0 (littlefs v2.11.1)
+> writes an image with **on-disk version 2.1** and **name_max 255**. The on-device
+> library (`LittleFS_esp32`, lfs v2.4) only reads **disk version 2.0** and is built
+> with **name_max 64**, so mklittlefs images fail to mount (`LFS_ERR_INVAL`) and the
+> firmware silently formats a blank FS. The symptoms are missing assets and a profile
+> that regenerates on every boot.
+
+Build the image with the bundled script, which pins disk version 2.0 and name_max 64
+to match the runtime (one-time setup: `pip install littlefs-python`):
 
 ```
-mklittlefs -c data -s 0x1EF000 -b 4096 -p 256 littlefs.bin
+python tools/build_littlefs.py data littlefs.bin
 ```
 
-The block size (-b) and page size (-p) parameters should stay as-is.
-
-The size parameter (-s) can be determined from the board-specific partition size, which
-can be found in the
-platform [boards.txt](https://github.com/CircuitMess/Arduino-ESP32/blob/master/boards.txt) under
-`<device>.menu.PartitionScheme.min_spiffs.upload.maximum_size`
+The geometry (block 4096, size 0x1EF000 = 495 blocks) and the disk version / name_max
+are baked into the script to match `LittleFS_esp32/src/esp_littlefs.c` and the No-OTA
+partition; see the comments in `tools/build_littlefs.py` if the partition layout or
+on-device library version ever changes.
 
 For uploading the image, you will need to download [esptool](https://github.com/espressif/esptool).
 

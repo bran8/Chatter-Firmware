@@ -107,6 +107,68 @@ NOTE: iPhone users should turn Private Wi-Fi Address to OFF to reduce reconnecti
 
 ---
 
+## Loading the LittleFS assets (read this — new users will hit a trap)
+
+The UI assets (avatars, meme pics) live in a **LittleFS** partition that is flashed
+**separately** from the firmware. Two things bite first-time builders, and both show the
+same symptom: the device boots but shows **broken/missing images** and its **profile name
+is randomly regenerated on every reboot**. That means LittleFS mounted an *empty*
+filesystem — your data never made it on, or it's in a format the device can't read.
+
+### The version trap (why the "obvious" way fails)
+
+The Chatter firmware mounts LittleFS using the Arduino **`LittleFS_esp32`** library (the
+"lorol" library — header `LITTLEFS.h`). When you install it from the Arduino Library
+Manager today you get a build using **littlefs `lfs` v2.4**, which reads only **on-disk
+version 2.0** and is compiled with **`LFS_NAME_MAX = 64`**.
+
+But the **`mklittlefs`** tool bundled with the modern ESP32 Arduino core (v4.x, littlefs
+v2.11) builds images with **on-disk version 2.1** and **`name_max = 255`**. A v2.1 image
+**cannot be mounted** by the v2.0 on-device library (it fails with `LFS_ERR_INVAL`), so the
+firmware silently formats a blank filesystem instead. Result: broken images + resetting
+profile. This is *not* a wiring or flashing problem — the image is simply built in a newer
+format than the library understands.
+
+### The reliable way (build a v2.0 image with the bundled script)
+
+Instead of `mklittlefs`, this repo ships **[`tools/build_littlefs.py`](tools/build_littlefs.py)**,
+which pins the on-disk version to **2.0** and `name_max` to **64** to match the device
+library exactly. One-time setup, then build:
+
+```bash
+pip install littlefs-python
+python tools/build_littlefs.py data littlefs.bin
+```
+
+### Flash it to the right partition — and the right device
+
+1. **Build the firmware with Tools → Partition Scheme → "No OTA".** In that scheme LittleFS
+   lives at **`0x211000`** (the default scheme puts it at `0x291000`, where the command
+   below would *not* load it). Firmware and image must agree on the address.
+2. **Flash the image, naming the port explicitly:**
+   ```bash
+   esptool --port COM3 --chip esp32 --baud 921600 write-flash -z 0x211000 littlefs.bin
+   ```
+   ⚠️ If you have **more than one Chatter / ESP32 plugged in**, always pass `--port`. Letting
+   esptool auto-pick will happily flash a *different* board — check the printed MAC matches
+   the device you're actually running. (Close the Arduino Serial Monitor first so the port
+   is free.)
+3. **Reboot and check the serial log.** A healthy mount prints:
+   ```
+   LittleFS mounted: ~110000 / 2027520 bytes used
+   ```
+   Non-zero "used" bytes = your assets are really on the device. `8192 / 2027520` means an
+   empty (freshly-formatted) FS — go back and recheck the steps above. `LittleFS mount
+   FAILED` means a version/partition mismatch.
+
+> The harmless `SPIFFS failed` line early in the boot log comes from the CircuitMess
+> library and can be ignored — this firmware uses LittleFS for everything and NVS for
+> settings.
+
+Full partition table and rationale are in **[SETUP.md](SETUP.md)**.
+
+---
+
 ## What's intentionally **not** running
 
 - **LVGL / display / theme / keypad input** — there's no screen to draw to.
