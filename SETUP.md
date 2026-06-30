@@ -119,25 +119,22 @@ the [README.md](https://github.com/me-no-dev/arduino-esp32fs-plugin?tab=readme-o
 Then from the opened sketch select Tools > ESP32 Sketch Data Upload menu item. This should start
 uploading the files into ESP32 flash filesystem.
 
-## Using the mkspiffs utility
+## Using the mklittlefs utility
 
-When building with CMake or Arduino 2.X, you will need to build and upload the SPIFFS image
+When building with CMake or Arduino 2.X, you will need to build and upload the LittleFS image
 separately.
 
-First, download the latest [mkspiffs](https://github.com/igrr/mkspiffs) utility for your OS with
-the "-arduino-esp32" suffix. (For
-example, [mkspiffs-0.2.3-arduino-esp32-win32.zip](https://github.com/igrr/mkspiffs/releases/download/0.2.3/mkspiffs-0.2.3-arduino-esp32-win32.zip)
-for Windows).
+First, download the latest [mklittlefs](https://github.com/earlephilhower/mklittlefs/releases) utility for your OS.
 
-Then create the binary SPIFFS image using the command in the root of the project:
+Then create the binary LittleFS image using the command in the root of the project:
 
 ```
-mkspiffs -c data -s 0x1EF000 -b 4096 -p 256 spiffs.bin
+mklittlefs -c data -s 0x1EF000 -b 4096 -p 256 littlefs.bin
 ```
 
 The block size (-b) and page size (-p) parameters should stay as-is.
 
-The size parameter (-s) can be determined from the board-specific SPIFFS partition size, which
+The size parameter (-s) can be determined from the board-specific partition size, which
 can be found in the
 platform [boards.txt](https://github.com/CircuitMess/Arduino-ESP32/blob/master/boards.txt) under
 `<device>.menu.PartitionScheme.min_spiffs.upload.maximum_size`
@@ -146,13 +143,13 @@ For uploading the image, you will need to download [esptool](https://github.com/
 
 Then, flash the compiled image to the board.
 
-The SPIFFS partition address will be defined alongside the SPIFFS partitions size, under
+The partition address can be found under
 `<device>.menu.PartitionScheme.min_spiffs.upload.spiffs_start`.
 This parameter is used in the
 following esptool command call (before referencing the built image):
 
 ```
-esptool --chip esp32 --baud 921600  --before default_reset --after hard_reset write_flash -z --flash_mode dio --flash_freq 80m --flash_size detect 0x211000 spiffs.bin
+esptool --chip esp32 --baud 921600  --before default_reset --after hard_reset write_flash -z --flash_mode dio --flash_freq 80m --flash_size detect 0x211000 littlefs.bin
 ```
 
 # Restoring the stock firmware

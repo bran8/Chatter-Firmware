@@ -1,4 +1,4 @@
-#include <SPIFFS.h>
+#include <LittleFS.h>
 #include "FSLVGL.h"
 #include <FS/RamFile.h>
 
@@ -54,7 +54,7 @@ void FSLVGL::loadCache(){
 	if(cacheLoaded) return;
 	cacheLoaded = true;
 	for(const char* path : cached){
-		File file = SPIFFS.open(path);
+		File file = LittleFS.open(path);
 		if(!file) continue;
 
 		auto pair = cache.find(path);
@@ -182,7 +182,7 @@ lv_fs_res_t FSLVGL::dir_close_cb(struct _lv_fs_drv_t* drv, void* rddir_p){
 
 void FSLVGL::loadSpecialCache(const char* path){
 	unloadSpecialCache();
-	File file = SPIFFS.open(path);
+	File file = LittleFS.open(path);
 	if(!file) return;
 
 	specialCache = new fs::File();

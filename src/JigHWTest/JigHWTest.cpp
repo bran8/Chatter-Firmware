@@ -1,4 +1,4 @@
-#include <SPIFFS.h>
+#include <LittleFS.h>
 #include <Battery/BatteryService.h>
 #include <TypeDef.h>
 #include <modules/LLCC68/LLCC68.h>
@@ -24,7 +24,7 @@ JigHWTest::JigHWTest(Display* display) : display(display), canvas(display->getBa
 
 	tests.push_back({JigHWTest::LoRaTest, "LoRa", [](){ }});
 	tests.push_back({JigHWTest::BatteryCheck, "Bat check", [](){}});
-	tests.push_back({JigHWTest::SPIFFSTest, "SPIFFS", [](){ }});
+	tests.push_back({JigHWTest::LittleFSTest, "LittleFS", [](){ }});
 //	tests.push_back({JigHWTest::buttons, "Buttons", [](){ }});
 	tests.push_back({JigHWTest::hwRevision, "HW rev"});
 }
@@ -206,14 +206,14 @@ bool JigHWTest::BatteryCheck(){
 	return true;
 }
 
-bool JigHWTest::SPIFFSTest(){
+bool JigHWTest::LittleFSTest(){
 	for(const auto& f : SPIFFSChecksums){
-		if(!SPIFFS.exists(f.name)){
+		if(!LittleFS.exists(f.name)){
 			test->log("missing", f.name);
 			return false;
 		}
 
-		fs::File file = SPIFFS.open(f.name, "r");
+		fs::File file = LittleFS.open(f.name, "r");
 		uint32_t sum = calcChecksum(file);
 		file.close();
 

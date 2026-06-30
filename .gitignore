@@ -3,6 +3,7 @@ cmake-build-debug
 build
 .vscode
 spiffs.bin
+littlefs.bin
 __pycache__/
 *.py[cod]
 *$py.class

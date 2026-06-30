@@ -53,10 +53,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    - Click Upload (arrow) to flash to device
    - Note: There's a known conflict warning about `Sprite::pushImage` — does not prevent upload
 
-3. **Upload SPIFFS assets** (Arduino 2.X):
+3. **Upload LittleFS assets** (Arduino 2.X):
    
-   - Use `mkspiffs` utility to build SPIFFS image: `mkspiffs -c data -s 0x1EF000 -b 4096 -p 256 spiffs.bin`
-   - Upload with esptool: `esptool --chip esp32 --baud 921600 write_flash -z 0x211000 spiffs.bin`
+   - Use `mklittlefs` utility to build LittleFS image: `mklittlefs -c data -s 0x1EF000 -b 4096 -p 256 littlefs.bin`
+   - Upload with esptool: `esptool --chip esp32 --baud 921600 write_flash -z 0x211000 littlefs.bin`
 
 ### Using CMake (Windows/Linux/macOS)
 
@@ -303,10 +303,10 @@ lv_obj_add_event_cb(element, eventCb, EV_ENTRY_DONE, nullptr);
 - Check CircuitMess board package is installed (v1.8.3+)
 - Verify CMakeLists.txt PORT and DEVICE settings
 
-### SPIFFS upload fails
+### LittleFS upload fails
 
-- Ensure `mkspiffs` and `esptool` are in PATH
-- Check SPIFFS size matches partition scheme in Arduino boards.txt
+- Ensure `mklittlefs` and `esptool` are in PATH
+- Check LittleFS partition size in Arduino boards.txt (key: `<device>.menu.PartitionScheme.min_spiffs.upload.maximum_size`)
 - Verify flash address (0x211000 for Chatter 2.0 with min_spiffs partition)
 
 ### Device crashes / reboots unexpectedly

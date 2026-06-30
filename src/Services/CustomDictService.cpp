@@ -1,6 +1,6 @@
 #include "CustomDictService.h"
 #include <Arduino.h>
-#include <SPIFFS.h>
+#include <LittleFS.h>
 #include <algorithm>
 
 #define CUSTOM_DICT_PATH "/custom_dict.txt"
@@ -82,9 +82,9 @@ std::vector<std::pair<std::string, uint32_t>> CustomDictService::getMatches(
 
 void CustomDictService::load(){
 	dict.clear();
-	if(!SPIFFS.exists(CUSTOM_DICT_PATH)) return;
+	if(!LittleFS.exists(CUSTOM_DICT_PATH)) return;
 
-	File f = SPIFFS.open(CUSTOM_DICT_PATH, "r");
+	File f = LittleFS.open(CUSTOM_DICT_PATH, "r");
 	if(!f) return;
 
 	while(f.available()){
@@ -105,7 +105,7 @@ void CustomDictService::load(){
 }
 
 void CustomDictService::save(){
-	File f = SPIFFS.open(CUSTOM_DICT_PATH, "w");
+	File f = LittleFS.open(CUSTOM_DICT_PATH, "w");
 	if(!f) return;
 
 	for(const auto& kv : dict){

@@ -10,7 +10,7 @@ The Chatter 2.0 is a peer-to-peer text communicator designed by CircuitMess. The
 * **Display**: Color LCD screen controlled via SPI.
 * **Input Interface**: 10-key numeric keypad (`BTN_1` to `BTN_0`) mapping to standard multi-tap text entry, along with control buttons (`BTN_L` for backspace, `BTN_R` for Shift/Caps, and navigation directional buttons `BTN_LEFT/BTN_UP (same button)`, `BTN_RIGHT/BTN_DOWN (same button)`.  
 * **Wireless Transceiver**: LoRa radio module running peer-to-peer encrypted wireless packets. **LoRa Transceiver**: LLCC68
-* **Storage**: onboard Flash memory partitioned for ESP32 firmware and a SPIFFS (Serial Peripheral Interface Flash File System) partition holding UI assets, sound clips, and user data database files.
+* **Storage**: onboard Flash memory partitioned for ESP32 firmware and a LittleFS partition holding UI assets, sound clips, and user data database files.
 * **Audio**: Piezoelectric buzzer managed by a software tone-generation service.
 
 ---

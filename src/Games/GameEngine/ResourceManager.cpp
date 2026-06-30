@@ -1,5 +1,5 @@
 #include "ResourceManager.h"
-#include <SPIFFS.h>
+#include <LittleFS.h>
 #include <FS/CompressedFile.h>
 #include <FS/RamFile.h>
 
@@ -29,7 +29,7 @@ void ResourceManager::load(const std::vector<ResDescriptor>& descriptors){
 
 		auto cPath = path.c_str();
 
-		File original = SPIFFS.open(cPath);
+		File original = LittleFS.open(cPath);
 		if(!original){
 			ESP_LOGE("ResMan", "Failed to load resource %s", cPath);
 			continue;
@@ -38,7 +38,7 @@ void ResourceManager::load(const std::vector<ResDescriptor>& descriptors){
 		if(descriptor.inRam){
 			if(descriptor.compParams){
 
-				//decode compressed file from SPIFFS to decoded RAMFile
+				//decode compressed file from LittleFS to decoded RAMFile
 				original = CompressedFile::open(original, descriptor.compParams.expansion, descriptor.compParams.lookahead);
 				original.seek(0);
 				File output = RamFile::create();
@@ -48,12 +48,12 @@ void ResourceManager::load(const std::vector<ResDescriptor>& descriptors){
 				}
 				resources[descriptor.path] = output;
 			}else{
-				//copy file from SPIFFS to RAMFile
+				//copy file from LittleFS to RAMFile
 				resources[descriptor.path] = RamFile::open(original);
 			}
 
 		}else{
-			//use file from SPIFFS, not from RAM
+			//use file from LittleFS, not from RAM
 			resources[descriptor.path] = original;
 		}
 	}

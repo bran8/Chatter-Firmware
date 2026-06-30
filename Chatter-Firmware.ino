@@ -6,7 +6,7 @@
 #include <CircuitOS.h>
 #include <Chatter.h>
 #include <Loop/LoopManager.h>
-#include <SPIFFS.h>
+#include <LittleFS.h>
 #include "src/Storage/Storage.h"
 #include "src/Services/LoRaService.h"
 #include "src/Services/MessageService.h"
@@ -64,6 +64,8 @@ void setup(){
 	LoopManager::reserve(24);
 
 	Chatter.begin(false);
+
+	LittleFS.begin(true);
 
 	initLog();
 	printf("\n");

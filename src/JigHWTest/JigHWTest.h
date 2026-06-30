@@ -37,7 +37,7 @@ private:
 
 	static bool LoRaTest();
 	static bool BatteryCheck();
-	static bool SPIFFSTest();
+	static bool LittleFSTest();
 	static bool hwRevision();
 	/** UNUSED */
 	static bool buttons();

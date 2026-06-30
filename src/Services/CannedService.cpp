@@ -1,6 +1,6 @@
 #include "CannedService.h"
 #include <Arduino.h>
-#include <SPIFFS.h>
+#include <LittleFS.h>
 
 #define CANNED_PATH "/canned.txt"
 
@@ -25,7 +25,7 @@ static const char* kLabels[CannedService::Count] = {
 };
 
 void CannedService::begin(){
-	if(SPIFFS.exists(CANNED_PATH)){
+	if(LittleFS.exists(CANNED_PATH)){
 		load();
 	}else{
 		resetDefaults();   // seeds slots and writes the file
@@ -58,7 +58,7 @@ const char* CannedService::keyLabel(size_t slot){
 }
 
 void CannedService::load(){
-	File f = SPIFFS.open(CANNED_PATH, "r");
+	File f = LittleFS.open(CANNED_PATH, "r");
 	if(!f){ resetDefaults(); return; }
 
 	// One line per slot, in slot order. A canned message is always single-line
@@ -76,7 +76,7 @@ void CannedService::load(){
 }
 
 void CannedService::save(){
-	File f = SPIFFS.open(CANNED_PATH, "w");
+	File f = LittleFS.open(CANNED_PATH, "w");
 	if(!f) return;
 	for(size_t i = 0; i < Count; i++){
 		f.print(slots[i].c_str());

@@ -5,7 +5,7 @@
 #include <Loop/LoopManager.h>
 #include <Input/Input.h>
 #include <Settings.h>
-#include <SPIFFS.h>
+#include <LittleFS.h>
 
 #define KEYPAD_SOUND_PATH "/keypad_sound.txt"
 
@@ -20,9 +20,9 @@ void BuzzerService::begin(){
 
 void BuzzerService::loadKeypadSound(){
 	keypadSoundsEnabled = true;   // default ON when no file exists yet
-	if(!SPIFFS.exists(KEYPAD_SOUND_PATH)) return;
+	if(!LittleFS.exists(KEYPAD_SOUND_PATH)) return;
 
-	File f = SPIFFS.open(KEYPAD_SOUND_PATH, "r");
+	File f = LittleFS.open(KEYPAD_SOUND_PATH, "r");
 	if(!f) return;
 	String s = f.readStringUntil('\n');
 	f.close();
@@ -32,7 +32,7 @@ void BuzzerService::loadKeypadSound(){
 
 void BuzzerService::setKeypadSounds(bool enabled){
 	keypadSoundsEnabled = enabled;
-	File f = SPIFFS.open(KEYPAD_SOUND_PATH, "w");
+	File f = LittleFS.open(KEYPAD_SOUND_PATH, "w");
 	if(!f) return;
 	f.print(enabled ? "1" : "0");
 	f.close();
