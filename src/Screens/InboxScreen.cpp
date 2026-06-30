@@ -8,7 +8,12 @@
 #include "BroadcastScreen.h"
 
 InboxScreen::InboxScreen() : LVScreen(), apop(this){
-	lv_obj_set_height(obj, LV_SIZE_CONTENT);
+	// Keep the screen at the fixed display height (128px). Previously this was
+	// LV_SIZE_CONTENT, which made the screen grow to fit all rows -> any rows past
+	// the visible 128px fell off the bottom with no way to scroll to them. With a
+	// fixed height, the flex column of rows overflows the screen's bounds, which
+	// makes the screen scrollable (LV_OBJ_FLAG_SCROLLABLE is set by LVScreen).
+	lv_obj_set_height(obj, lv_pct(100));
 	lv_obj_set_layout(obj,LV_LAYOUT_FLEX);
 	lv_obj_set_flex_flow(obj, LV_FLEX_FLOW_COLUMN);
 	lv_obj_set_flex_align(obj, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
@@ -36,6 +41,9 @@ InboxScreen::InboxScreen() : LVScreen(), apop(this){
 
 	auto broadcastItem = new ListItem(obj, ">> Broadcast All", 0);
 	lv_group_add_obj(inputGroup, broadcastItem->getLvObj());
+	// Without SCROLL_ON_FOCUS the list won't scroll up to reveal this top item when
+	// it's focused, so it stays clipped off the top edge (focusable but invisible).
+	lv_obj_add_flag(broadcastItem->getLvObj(), LV_OBJ_FLAG_SCROLL_ON_FOCUS);
 	lv_obj_add_event_cb(broadcastItem->getLvObj(), [](lv_event_t* event){
 		auto* screen = static_cast<LVScreen*>(lv_event_get_user_data(event));
 		screen->push(new BroadcastScreen());
