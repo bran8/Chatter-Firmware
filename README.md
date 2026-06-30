@@ -29,7 +29,7 @@ This firmware is configured for the **Chatter 2.0 Green** edition hardware:
 
 Check the marking on your radio module to confirm it matches before flashing:
 
-![868 MHz radio module marking on this device](868mhz.jpg)
+![868 MHz radio module marking on this device](868mhz.png)
 
 ---
 
