@@ -169,6 +169,15 @@ Full partition table and rationale are in **[SETUP.md](SETUP.md)**.
 
 ---
 
+## The web interface
+
+![The Chatter web client running in a phone browser](Webclient.jpg)
+
+The control panel served from the device at **http://192.168.4.1/** — friends,
+conversations, compose/send, broadcast, pairing, and the live status header.
+
+---
+
 ## What's intentionally **not** running
 
 - **LVGL / display / theme / keypad input** — there's no screen to draw to.
