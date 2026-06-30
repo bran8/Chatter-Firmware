@@ -81,7 +81,15 @@ void setup(){
 	initLog();
 	printf("\n");
 
-	if(Battery.getPercentage() == 0){
+	// Dead-battery guard. Reads BATTERY_PIN (GPIO 36 on this rev-1 board) via the
+	// shared Chatter-Library. With no screen on this build, serial is the only way
+	// to know the guard fired -- otherwise the unit just goes silent on boot.
+	uint8_t battPct = Battery.getPercentage();
+	uint16_t battMv = Battery.getVoltage();
+	printf("[BOOT] Battery check: %u%% (%u mV) on GPIO %d\n", battPct, battMv, BATTERY_PIN);
+	if(battPct == 0){
+		printf("[BOOT] *** DEAD-BATTERY GUARD FIRING -> Sleep.turnOff() (no boot) ***\n");
+		Serial.flush();
 		LoRa.initStateless();
 		Sleep.turnOff();
 		for(;;);
