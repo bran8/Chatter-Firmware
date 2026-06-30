@@ -46,7 +46,9 @@ private:
 	void handleStatus();
 	void handleGetProfile();
 	void handleSetProfile();
-	void handleAvatar();          // serves a built-in avatar as a BMP for the picker
+	void handleAvatar();          // serves a built-in avatar PNG (from PROGMEM C array)
+	void handlePic();             // serves a meme pic PNG from LittleFS /Pics/N.png
+	void handleSendPic();         // POST convo+pic index, creates a PIC message
 	void handleSilence();         // stop an in-progress incoming-message alert
 	void handleDeleteFriend();    // remove a friend + its conversation
 	void handleDeleteMessage();   // remove one message from a conversation

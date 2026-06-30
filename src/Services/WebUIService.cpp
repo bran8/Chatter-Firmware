@@ -9,6 +9,7 @@
 #include <Settings.h>
 #include "SleepService.h"
 #include "AvatarAssets.h"
+#include <LittleFS.h>
 
 WebUIService WebUI;
 
@@ -71,6 +72,12 @@ a{color:#8cf}
 #avgrid img{width:100%;height:auto;border-radius:8px;border:2px solid transparent;cursor:pointer}
 #avgrid img.sel{border-color:#8cf}
 .field{padding:0 10px}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9}
+.picker{position:fixed;bottom:0;left:0;right:0;background:#222;padding:12px;border-radius:12px 12px 0 0;z-index:10}
+.pic-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
+.pic-grid img{width:100%;aspect-ratio:1;border-radius:6px;cursor:pointer;border:2px solid #444;object-fit:cover}
+.pic-grid img:active{border-color:#8cf}
+.msg img{max-width:120px;border-radius:6px;display:block}
 </style>
 </head>
 <body>
@@ -101,6 +108,15 @@ a{color:#8cf}
   <div id="compose">
     <input id="composeText" placeholder="Message">
     <button onclick="send()">Send</button>
+    <button onclick="showMemePicker()">Pic</button>
+  </div>
+</div>
+
+<div id="memePicker" class="hidden">
+  <div class="overlay" onclick="hideMemePicker()"></div>
+  <div class="picker">
+    <div class="pic-grid" id="picGrid"></div>
+    <button onclick="hideMemePicker()" style="width:100%">Cancel</button>
   </div>
 </div>
 
@@ -266,9 +282,15 @@ function loadConvo(){
     msgs.forEach(m=>{
       const el = document.createElement('div');
       el.className = 'msg ' + (m.outgoing ? 'out' : 'in');
-      const txt = (m.type === 'text' ? m.text : '[pic '+m.pic+']') + (m.outgoing ? (m.received?' (ack)':' (sending...)') : '');
       const span = document.createElement('span');
-      span.innerText = txt;
+      if(m.type === 'pic'){
+        const img = document.createElement('img');
+        img.src = '/api/pic?i=' + m.pic;
+        span.appendChild(img);
+      } else {
+        span.innerText = m.type === 'text' ? m.text : '[unknown]';
+      }
+      if(m.outgoing){ const s = document.createElement('small'); s.style.opacity='.6'; s.innerText=' '+(m.received?'(ack)':'(sending...)'); span.appendChild(s); }
       const del = document.createElement('button');
       del.className = 'del'; del.innerText = '✕';
       del.onclick = ()=>deleteMessage(m.uid);
@@ -285,6 +307,26 @@ function deleteMessage(msgUid){
     body:'convo='+currentConvo+'&msg='+msgUid}).then(()=>loadConvo());
 }
 
+function showMemePicker(){
+  const grid = document.getElementById('picGrid');
+  if(!grid.children.length){
+    for(let i=0;i<8;i++){
+      const img = document.createElement('img');
+      img.src = '/api/pic?i='+i;
+      img.onclick = ()=>{ sendPic(i); hideMemePicker(); };
+      grid.appendChild(img);
+    }
+  }
+  document.getElementById('memePicker').classList.remove('hidden');
+}
+function hideMemePicker(){
+  document.getElementById('memePicker').classList.add('hidden');
+}
+function sendPic(index){
+  if(!currentConvo) return;
+  fetch('/api/sendpic',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:'convo='+currentConvo+'&pic='+index}).then(()=>loadConvo());
+}
 function send(){
   const text = document.getElementById('composeText').value;
   if(!text || !currentConvo) return;
@@ -381,6 +423,8 @@ void WebUIService::begin(){
 	server.on("/api/profile", HTTP_GET, [this](){ trace(); handleGetProfile(); });
 	server.on("/api/profile", HTTP_POST, [this](){ trace(); handleSetProfile(); });
 	server.on("/api/avatar", HTTP_GET, [this](){ trace(); handleAvatar(); });
+	server.on("/api/pic", HTTP_GET, [this](){ trace(); handlePic(); });
+	server.on("/api/sendpic", HTTP_POST, [this](){ trace(); handleSendPic(); });
 	server.on("/api/silence", HTTP_POST, [this](){ trace(); handleSilence(); });
 	server.on("/api/friends/delete", HTTP_POST, [this](){ trace(); handleDeleteFriend(); });
 	server.on("/api/messages/delete", HTTP_POST, [this](){ trace(); handleDeleteMessage(); });
@@ -812,6 +856,34 @@ void WebUIService::handleAvatar(){
 	}
 
 	server.send_P(200, "image/png", (PGM_P) AvatarPng[idx], AvatarPngLen[idx]);
+}
+
+void WebUIService::handlePic(){
+	int idx = server.arg("i").toInt();
+	if(idx < 0 || idx > 7){
+		server.send(404, "text/plain", "no such pic");
+		return;
+	}
+	String path = "/Pics/" + String(idx) + ".png";
+	File f = LittleFS.open(path, "r");
+	if(!f){
+		server.send(404, "text/plain", "pic not on flash");
+		return;
+	}
+	server.streamFile(f, "image/png");
+	f.close();
+}
+
+void WebUIService::handleSendPic(){
+	UID_t convo = hexToUid(server.arg("convo"));
+	int pic = server.arg("pic").toInt();
+	if(convo == 0 || pic < 0 || pic > 7){
+		server.send(400, "application/json", "{\"ok\":false,\"error\":\"missing convo or invalid pic\"}");
+		return;
+	}
+	touchActivity();
+	Message msg = Messages.sendPic(convo, (uint8_t) pic);
+	server.send(200, "application/json", String("{\"ok\":") + (msg.uid != 0 ? "true" : "false") + "}");
 }
 
 void WebUIService::handleNotFound(){
