@@ -1,19 +1,16 @@
-# Chatter 2.0 Green
+# Chatter 2.0 Green (Headless WiFi)
 
 This fork adds my custom tweaks for Chatter 2.0.  Agentic Engineering assisted, peer review welcome.
 
 **Key improvements:**
 
+- **Connect to Chatter over WiFi** - use your phone
 - **Broadcast to all friends** – send one message that goes to all your friends
-- *T9* - Basic version of T9 word entry using unrefined frequency wordlist 
+
 - **Retry until Ack** – all sends are retried until acknowledged by receiver (Go to Settings to clear the sending queue to clear the airwaves)
 - **Incoming Annoyance** – incoming messages are important, play sound continuiously until silenced
-- **Canned responses** – Long Press to type a pre-canned message (Go to Settings to customize)
 
-Quality of Life
 
-- Wrap around menus (sacrificing some animation)
-- Keep draft message
 
 Detailed Setup that worked for me: 
 
@@ -39,7 +36,27 @@ Click the "Checkmark" to verify.  It will "Compiling sketch..." for a few minute
 
 I get a conflict error with overlapping candidates; void Sprite::pushImage and void lgfx::v1::LGFXBase::pushImage.  It does not stop me from Uploading the sketch to the device successfully.
 
+
+
+Next, you need to upload the **data** to the flash, you may use the included littlefs.bin for convenience or read further below to create your own.
+
+Download the esptool https://github.com/espressif/esptool/releases 
+
+```
+esptool --chip esp32 --baud 921600  --before default_reset --after hard_reset write_flash -z --flash_mode dio --flash_freq 80m --flash_size detect 0x211000 littlefs.bin
+```
+
+
+
+
+
+
+
 If you need to factory restore the device, login to https://code.circuitmess.com/ and click on Restore Firmware in the top-right corner. 
+
+
+
+
 
 ## Serial Monitor
 
@@ -124,7 +141,7 @@ The firmware mounts LittleFS at a partition whose address depends on the **Parti
 Scheme** selected when you compile, and the image **must be flashed to that same address**:
 
 | Scheme (Tools > Partition Scheme) | LittleFS offset | LittleFS size |
-|---|---|---|
+| --------------------------------- | --------------- | ------------- |
 | **No OTA** (use this build)       | **0x211000**    | **0x1EF000**  |
 | Default (chatter2 default)        | 0x291000        | 0x16F000      |
 

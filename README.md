@@ -14,14 +14,14 @@ no keypad UI** and is controlled entirely from a phone browser over Wi-Fi.
 
 This firmware is configured for the **Chatter 2.0 Green** edition hardware:
 
-| Parameter | Value | Notes |
-|-----------|-------|-------|
-| **Frequency** | **868 MHz** | EU ISM band (CE); matches this device's radio module |
-| **Bandwidth** | 500 kHz | |
-| **Spreading Factor** | 9 | |
-| **Coding Rate** | 4/5 | |
-| **TX Power** | 22 dBm | |
-| **Radio chip** | LLCC68 (SX1262 family) | |
+| Parameter            | Value                  | Notes                                                |
+| -------------------- | ---------------------- | ---------------------------------------------------- |
+| **Frequency**        | **868 MHz**            | EU ISM band (CE); matches this device's radio module |
+| **Bandwidth**        | 500 kHz                |                                                      |
+| **Spreading Factor** | 9                      |                                                      |
+| **Coding Rate**      | 4/5                    |                                                      |
+| **TX Power**         | 22 dBm                 |                                                      |
+| **Radio chip**       | LLCC68 (SX1262 family) |                                                      |
 
 > ⚠️ This device's radio is an **868 MHz** (EU/CE band) part. If you build for a
 > US/915 MHz unit, change `LoRaService.cpp:begin()` to 915 MHz.
@@ -67,12 +67,12 @@ Removing the dead panel is optional, but it's safe — and it saves a little pow
 With no screen, the **buzzer is the only feedback channel**, so the build chirps short
 non-blocking melodies for the events that matter:
 
-| Event | Cue |
-| --- | --- |
-| Boot / AP is up | C5–E5–G5 **rising** chime — "I booted, Wi-Fi is live" |
-| A phone connects to the AP | C5–G5 **rising** |
-| A phone disconnects | G5–C5 **falling** |
-| Battery dropping on backup power | E5–C5–G4 **falling** — check USB power |
+| Event                            | Cue                                                   |
+| -------------------------------- | ----------------------------------------------------- |
+| Boot / AP is up                  | C5–E5–G5 **rising** chime — "I booted, Wi-Fi is live" |
+| A phone connects to the AP       | C5–G5 **rising**                                      |
+| A phone disconnects              | G5–C5 **falling**                                     |
+| Battery dropping on backup power | E5–C5–G4 **falling** — check USB power                |
 
 Cues honor the global sound setting (silent if sound is turned off). The boot chime is
 your confirmation that the firmware came up and the Access Point is broadcasting,
@@ -91,13 +91,17 @@ unchanged.)
 
 1. Build & flash this branch to the broken-LCD device (same Arduino IDE / CMake steps
    as the standard firmware — see [SETUP.md](SETUP.md)).
+
 2. On boot you'll hear the **rising boot chime** and the serial monitor prints the AP
    name and URL.
+
 3. On your phone, join the Wi-Fi network **`Chatter-XXXX`** (XXXX = last 4 hex of the
    device ID) using the password set in
    [`src/Services/WebUIService.cpp`](src/Services/WebUIService.cpp).
+   
    > **Set a password of at least 8 characters** before flashing — WPA2 rejects
    > shorter ones and the AP won't come up secured.
+
 4. Browse to **http://192.168.4.1/** — you'll get the friends list, conversations, a
    compose/send box, a broadcast button, and a pairing flow (scan → tap to pair). The
    header shows live **battery %, pack voltage, pending sends, connected clients, and
@@ -115,10 +119,8 @@ NOTE: iPhone users should turn Private Wi-Fi Address to OFF to reduce reconnecti
 ### Web UI features
 
 - **Friends & conversations** — avatar thumbnail, name, and last message per friend;
-  tap to open the thread, compose and send.
+  tap to open the thread, compose, send, broadcast all.
 - **My profile** (`me` link) — edit your **name**, pick from the 15 built-in **avatars**
-  (rendered live in the browser — the firmware transcodes the device's LVGL image
-  assets to BMP on the fly), and set your color hue. Saved back to the device profile.
 - **Silence** (`silence` link) — stop an in-progress incoming-message alert from the
   phone, without walking over to press a key.
 - **Delete** — remove a friend (and its whole conversation) or an individual message
@@ -168,18 +170,24 @@ python tools/build_littlefs.py data littlefs.bin
 1. **Build the firmware with Tools → Partition Scheme → "No OTA".** In that scheme LittleFS
    lives at **`0x211000`** (the default scheme puts it at `0x291000`, where the command
    below would *not* load it). Firmware and image must agree on the address.
+
 2. **Flash the image, naming the port explicitly:**
+   
    ```bash
    esptool --port COM3 --chip esp32 --baud 921600 write-flash -z 0x211000 littlefs.bin
    ```
+   
    ⚠️ If you have **more than one Chatter / ESP32 plugged in**, always pass `--port`. Letting
    esptool auto-pick will happily flash a *different* board — check the printed MAC matches
    the device you're actually running. (Close the Arduino Serial Monitor first so the port
    is free.)
+
 3. **Reboot and check the serial log.** A healthy mount prints:
+   
    ```
    LittleFS mounted: ~110000 / 2027520 bytes used
    ```
+   
    Non-zero "used" bytes = your assets are really on the device. `8192 / 2027520` means an
    empty (freshly-formatted) FS — go back and recheck the steps above. `LittleFS mount
    FAILED` means a version/partition mismatch.
@@ -198,6 +206,10 @@ Full partition table and rationale are in **[SETUP.md](SETUP.md)**.
 
 The control panel served from the device at **http://192.168.4.1/** — friends,
 conversations, compose/send, broadcast, pairing, and the live status header.
+
+
+
+Note: Brave on iOS doesnt work for me, I cant interact with the popup messages
 
 ---
 
