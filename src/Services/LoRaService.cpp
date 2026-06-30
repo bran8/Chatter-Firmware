@@ -61,7 +61,8 @@ void LoRaService::initStateless(){
 }
 
 bool LoRaService::begin(){
-	int state = radio.begin(868, 500, 9, 5, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, 22, 8, 0, false);
+	// 915 MHz = US ISM band, matching Chatter 2.0 Green hardware
+	int state = radio.begin(915, 500, 9, 5, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, 22, 8, 0, false);
 
 	if(state != RADIOLIB_ERR_NONE){
 		printf("LoRa: Radio begin err\n");
