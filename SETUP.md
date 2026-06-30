@@ -30,9 +30,21 @@ Then on the Select Board pull-down selector, you can find the "Boards" called: *
 
 On my system, it connected to COM4 Serial Port (USB)
 
-Click Tools -> Manage Libraries...
+### ⚠️ Install the exact LittleFS library (required)
 
-Search for "LittleFS_esp32 by lorol"...  Pick version 1.0.6 and install...
+This fork stores its UI assets on **LittleFS**, and the device must use one specific
+library to mount them. In the Arduino IDE:
+
+1. Click **Tools → Manage Libraries...**
+2. Search for **`LittleFS_esp32`** (author **lorol**)
+3. Select version **1.0.6** from the version dropdown and click **Install**
+
+> **Don't confuse two different "versions" here.** `1.0.6` is the **Arduino library
+> release** you install above. That is *not* the same as the **on-disk image format
+> version (2.0)** discussed later in "The version trap" — that one refers to how
+> `littlefs.bin` itself is built. You need the **1.0.6 library** *and* a **v2.0 image**;
+> they are separate things that must both line up. The bundled `littlefs.bin` is already
+> a v2.0 image, so installing the 1.0.6 library is all you need to do here.
 
 Click File->Open-> **Chatter-Firmware.ino**
 

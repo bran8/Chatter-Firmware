@@ -79,7 +79,9 @@ without needing to look at anything.
 
 **Incoming messages still sound and still cancel by keypress.** The keypad/control
 buttons are read over a shift register that's independent of the LCD, so they keep
-working with the screen unplugged. A silence link is used on the web browser to acknowledge the alerts.
+working with the screen unplugged — **pressing any physical button silences an
+in-progress alert**. The web UI's **silence** link does the same thing remotely, so
+you can stop the noise without walking over to the device.
 
 ---
 
@@ -104,7 +106,7 @@ working with the screen unplugged. A silence link is used on the web browser to 
    uptime** (polled every 10 s). Watching the voltage trend is a handy way to gauge how
    fast Wi-Fi drains the pack when running on battery backup.
 
-NOTE: iPhone users should turn Private Wi-Fi Address to OFF to reduce reconnection negotiation.  Also, Brave browser doesnt work for me.
+NOTE: iPhone users should turn Private Wi-Fi Address to OFF to reduce reconnection negotiation.
 
 > ⚠️ **Turn off your VPN first.** If a VPN is active on the phone, it tunnels
 > *all* traffic — including the request to `192.168.4.1` — out through the VPN
@@ -119,13 +121,17 @@ NOTE: iPhone users should turn Private Wi-Fi Address to OFF to reduce reconnecti
 - **My profile** (`me` link) — edit your **name**, pick from the 15 built-in **avatars**
 - **Silence** (`silence` link) — stop an in-progress incoming-message alert from the
   phone, without walking over to press a key.
+- **Stop sending** (`stop sending` link) — stop retrying every pending (un-ACKed) send
+  at once, to clear the airwaves. Messages aren't deleted — they stay in the
+  conversation as undelivered; open one and retry to resume that send.
+- **Send memes** — pick from the built-in meme pics and send one into a conversation.
+  Thumbnails load one at a time so the single-connection web server stays responsive.
 - **Delete** — remove a friend (and its whole conversation) or an individual message
   via the ✕ buttons. Per-record only; no bulk wipe.
 - **Backup-power alert** — there is no USB/charge-detect pin, so the device infers power
   state from the battery gauge: if the charge falls past a threshold (it never does on
   USB power), it sounds a distinctive **falling cue** and shows an **"ON BATTERY"**
   banner — your signal that USB power was lost and the backup pack is draining.
-- **Send Memes**
 
 ---
 
@@ -192,8 +198,6 @@ python tools/build_littlefs.py data littlefs.bin
 > The harmless `SPIFFS failed` line early in the boot log comes from the CircuitMess
 > library and can be ignored — this firmware uses LittleFS for everything and NVS for
 > settings.
-> 
-> 
 
 Full partition table and rationale are in **[SETUP.md](SETUP.md)**.
 
