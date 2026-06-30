@@ -139,6 +139,10 @@ Message MessageService::resend(UID_t convo, UID_t message){
 	if(msg.uid == 0) return { };
 	if(msg.received || !msg.outgoing) return { };
 
+	// Clear any prior "stop pending" abort so an explicit retry resumes the normal
+	// retry-until-ACK loop, not just this single send.
+	aborted.erase(message);
+
 	sendPacket(convo, msg);
 	return msg;
 }

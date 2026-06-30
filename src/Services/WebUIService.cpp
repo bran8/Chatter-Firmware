@@ -82,7 +82,7 @@ a{color:#8cf}
 <body>
 <header>
   <strong>Chatter</strong>
-  <span><a href="#" onclick="showProfile();return false;">me</a> | <a href="#" onclick="showPair();return false;">pair</a> | <a href="#" onclick="silence();return false;">silence</a></span>
+  <span><a href="#" onclick="showProfile();return false;">me</a> | <a href="#" onclick="showPair();return false;">pair</a> | <a href="#" onclick="silence();return false;">silence</a> | <a href="#" onclick="stopPending();return false;">stop sending</a></span>
 </header>
 <div id="banner" class="hidden"></div>
 <div id="status" class="field" title="battery / pending / connected clients" style="opacity:.7;font-size:.85em">--</div>
@@ -131,6 +131,24 @@ let pairStatusTimer = null;  // /api/pair/status result poll (1s)
 let pairing = false;         // a pair-confirm is in progress (greys the buttons, blocks re-taps)
 let selectedAvatar = 0;
 let avatarLoadToken = 0;     // bumped each time the avatar grid loads; cancels a stale chain
+
+// Sequential image loader. Same reason as the avatar grid: the device serves one
+// connection at a time, so firing every <img> src at once opens parallel requests
+// that stall behind each other and block /api/status, making the UI feel hung.
+// Each channel keeps exactly one request in flight; a new load on the same channel
+// bumps the token and cancels the stale chain.
+let seqTokens = {};
+function loadImagesSeq(channel, pairs){
+  const token = (seqTokens[channel] = (seqTokens[channel] || 0) + 1);
+  let n = 0;
+  const next = ()=>{
+    if(n >= pairs.length || token !== seqTokens[channel]) return;
+    const p = pairs[n];
+    p.img.onload = p.img.onerror = ()=>{ n++; next(); };
+    p.img.src = p.src;
+  };
+  next();
+}
 
 // In-flight guards: a periodic poll skips its tick if its own previous request
 // hasn't returned yet, so a briefly-slow (single-client) server can't let
@@ -217,6 +235,13 @@ function silence(){
   fetch('/api/silence', {method:'POST'});
 }
 
+function stopPending(){
+  // No confirm/alert dialogs: a suppressed "don't show more alerts" choice in the
+  // browser would auto-cancel confirm() and make the button appear dead. Just clear
+  // the queue and let the status line ("pending N") reflect the result.
+  fetch('/api/pending/clear', {method:'POST'}).then(()=>refreshStatus()).catch(()=>{});
+}
+
 function deleteFriend(uid, name){
   if(!confirm('Delete '+name+' and the whole conversation?')) return;
   fetch('/api/friends/delete', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
@@ -278,13 +303,15 @@ function loadConvo(){
   fetch('/api/convo?uid='+currentConvo).then(r=>r.json()).then(msgs=>{
     const div = document.getElementById('convo');
     div.innerHTML = '';
+    const picPairs = [];
     msgs.forEach(m=>{
       const el = document.createElement('div');
       el.className = 'msg ' + (m.outgoing ? 'out' : 'in');
       const span = document.createElement('span');
       if(m.type === 'pic'){
         const img = document.createElement('img');
-        img.src = '/api/pic?i=' + m.pic;
+        // src set later by loadImagesSeq so the pics load one at a time.
+        picPairs.push({img, src:'/api/pic?i=' + m.pic});
         span.appendChild(img);
       } else {
         span.innerText = m.type === 'text' ? m.text : '[unknown]';
@@ -297,6 +324,7 @@ function loadConvo(){
       div.appendChild(el);
     });
     div.scrollTop = div.scrollHeight;
+    loadImagesSeq('convo', picPairs);   // throttle the pic loads to one at a time
   });
 }
 
@@ -309,12 +337,14 @@ function deleteMessage(msgUid){
 function showMemePicker(){
   const grid = document.getElementById('picGrid');
   if(!grid.children.length){
+    const picPairs = [];
     for(let i=0;i<8;i++){
       const img = document.createElement('img');
-      img.src = '/api/pic?i='+i;
       img.onclick = ()=>{ sendPic(i); hideMemePicker(); };
       grid.appendChild(img);
+      picPairs.push({img, src:'/api/pic?i='+i});   // src set by loadImagesSeq below
     }
+    loadImagesSeq('picker', picPairs);   // load the 8 thumbnails one at a time
   }
   document.getElementById('memePicker').classList.remove('hidden');
 }
@@ -418,6 +448,7 @@ void WebUIService::begin(){
 	server.on("/api/broadcast", HTTP_POST, [this](){ trace(); handleBroadcast(); });
 	server.on("/api/read", HTTP_POST, [this](){ trace(); handleMarkRead(); });
 	server.on("/api/pending", HTTP_GET, [this](){ trace(); handlePending(); });
+	server.on("/api/pending/clear", HTTP_POST, [this](){ trace(); handleClearPending(); });
 	server.on("/api/status", HTTP_GET, [this](){ trace(); handleStatus(); });
 	server.on("/api/profile", HTTP_GET, [this](){ trace(); handleGetProfile(); });
 	server.on("/api/profile", HTTP_POST, [this](){ trace(); handleSetProfile(); });
@@ -722,6 +753,15 @@ void WebUIService::handleMarkRead(){
 
 void WebUIService::handlePending(){
 	server.send(200, "application/json", "{\"pending\":" + String(Messages.pendingCount()) + "}");
+}
+
+// Stop retrying every message currently pending (snapshots their UIDs so the
+// retry loop skips them). Messages are NOT deleted -- they stay in the convo as
+// undelivered and can be retried per-message later. New sends are unaffected.
+void WebUIService::handleClearPending(){
+	touchActivity();
+	int count = Messages.abortPending();
+	server.send(200, "application/json", "{\"ok\":true,\"count\":" + String(count) + "}");
 }
 
 void WebUIService::handleStatus(){

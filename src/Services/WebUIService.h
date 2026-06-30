@@ -43,6 +43,7 @@ private:
 	void handleBroadcast();
 	void handleMarkRead();
 	void handlePending();
+	void handleClearPending();    // stop retrying all currently-pending sends
 	void handleStatus();
 	void handleGetProfile();
 	void handleSetProfile();
