@@ -8,7 +8,6 @@
 #include <Battery/BatteryService.h>
 #include <Settings.h>
 #include "SleepService.h"
-#include "AvatarAssets.h"
 #include <LittleFS.h>
 
 WebUIService WebUI;
@@ -841,21 +840,23 @@ void WebUIService::handleDeleteMessage(){
 	server.send(200, "application/json", String("{\"ok\":") + (ok ? "true" : "false") + "}");
 }
 
-// Serve one built-in avatar (index 0-14) as a PNG, straight from flash. The
-// images are embedded in the firmware (src/Services/AvatarAssets.h, generated
-// by data/Avatars/large/png2c.py) rather than read from SPIFFS, so getting
-// avatars onto the device is just a normal sketch upload -- no separate SPIFFS
-// data flash (which IDE 2.x can't do for this board and which kept landing the
-// image at the wrong partition offset). PNG keeps the avatars' transparent
-// corners so they composite cleanly over the page background.
+// Serve one avatar PNG (index 0-14) from LittleFS at /Avatars/large/N.png.
+// Flash the data/ folder with mklittlefs before using this. To revert to
+// the embedded PROGMEM approach (no data flash required) do: git revert HEAD.
 void WebUIService::handleAvatar(){
 	int idx = server.arg("i").toInt();
 	if(idx < 0 || idx > 14){
 		server.send(404, "text/plain", "no such avatar");
 		return;
 	}
-
-	server.send_P(200, "image/png", (PGM_P) AvatarPng[idx], AvatarPngLen[idx]);
+	String path = "/Avatars/large/" + String(idx + 1) + ".png";
+	File f = LittleFS.open(path, "r");
+	if(!f){
+		server.send(404, "text/plain", "avatar not on flash");
+		return;
+	}
+	server.streamFile(f, "image/png");
+	f.close();
 }
 
 void WebUIService::handlePic(){
