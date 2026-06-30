@@ -10,6 +10,23 @@ no keypad UI** and is controlled entirely from a phone browser over Wi-Fi.
 > devices keep building and behaving exactly as before. Build/flash the broken unit
 > from this branch; build everything else from `master`.
 
+## Hardware compatibility — Chatter 2.0 Green
+
+This firmware is configured for the **Chatter 2.0 Green** edition hardware:
+
+| Parameter | Value | Notes |
+|-----------|-------|-------|
+| **Frequency** | **915 MHz** | US ISM band (FCC); matches all Chatter 2.0 Green units |
+| **Bandwidth** | 500 kHz | |
+| **Spreading Factor** | 9 | |
+| **Coding Rate** | 4/5 | |
+| **TX Power** | 22 dBm | |
+| **Radio chip** | LLCC68 (SX1262 family) | |
+
+> ⚠️ The original upstream Chatter-Firmware used **868 MHz** (EU/CE band). If you are
+> building for a non-Green / EU unit, revert `LoRaService.cpp:begin()` back to 868 MHz.
+> Devices on different frequencies cannot communicate with each other.
+
 ---
 
 ## Why this exists
