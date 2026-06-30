@@ -106,6 +106,12 @@ unchanged.)
 
 NOTE: iPhone users should turn Private Wi-Fi Address to OFF to reduce reconnection negotiation
 
+> ⚠️ **Turn off your VPN first.** If a VPN is active on the phone, it tunnels
+> *all* traffic — including the request to `192.168.4.1` — out through the VPN
+> instead of over the local Wi-Fi, so the page never reaches the device and just
+> hangs. The serial console will show the phone associated but **zero requests**
+> (`[WebUI] stats: sta=1 ... total=0`). Disable the VPN, then reload the page.
+
 ### Web UI features
 
 - **Friends & conversations** — avatar thumbnail, name, and last message per friend;
